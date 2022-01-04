@@ -1,0 +1,15 @@
+name : old_chordgan
+channels : 
+  - defaults
+  - conda-forge
+dependencies:
+  - python==3.6.5
+  - tensorflow-gpu==1.15
+  - tensorflow-estimator==1.15.1
+  - librosa
+  - pretty_midi==0.2.9
+  - numpy
+  - ipykernel
+  - black
+  - nb_black
+  
