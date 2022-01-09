@@ -1,0 +1,16 @@
+name : chordgan
+channels : 
+  - defaults
+  - conda-forge
+dependencies:
+  - tensorflow-gpu
+  - keras-gpu
+  - tensorflow-estimator
+  - matplotlib
+  - librosa
+  - pretty_midi
+  - numpy
+  - ipykernel
+  - black
+  - nb_black
+  
