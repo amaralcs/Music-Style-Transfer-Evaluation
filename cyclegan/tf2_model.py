@@ -180,7 +180,6 @@ class CycleGAN(object):
                 batch_samples = [load_npy_data(batch_file) for batch_file in batch_files]
                 batch_samples = np.array(batch_samples).astype(np.float32)  # batch_size * 64 * 84 * 2
                 real_A, real_B = batch_samples[:, :, :, 0], batch_samples[:, :, :, 1]
-                print("real_A.shape: ", real_A.shape)
                 real_A = tf.expand_dims(real_A, -1)
                 real_B = tf.expand_dims(real_B, -1)
 
@@ -193,7 +192,6 @@ class CycleGAN(object):
                                                           self.input_c_dim])).astype(np.float32)
 
                 if self.model == 'base':
-                    print(f"\tusing model: {self.model}")
                     with tf.GradientTape(persistent=True) as gen_tape, tf.GradientTape(persistent=True) as disc_tape:
 
                         fake_B = self.generator_A2B(real_A,
