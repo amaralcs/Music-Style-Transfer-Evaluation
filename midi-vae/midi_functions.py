@@ -6,8 +6,8 @@ import _pickle as pickle
 import os
 import sys
 import pretty_midi as pm
-import mido
-import operator
+# import mido
+# import operator
 
 
 

@@ -4,3 +4,5 @@ data/
 papers/
 __pycache__/
 .vscode/
+midi-vae/models/*
+chordgan/converted/*

@@ -16,7 +16,7 @@ import _pickle as pickle
 import time
 import vae_definition
 from vae_definition import VAE
-import tensorflow as tf
+# import tensorflow as tf
 from keras.backend.tensorflow_backend import set_session
 from sklearn.utils import class_weight
 from sklearn.model_selection import train_test_split
@@ -135,7 +135,6 @@ if load_previous_checkpoint:
 
 print('loading data...')
 # Get Train and test sets
-
 
 folder = source_folder
 

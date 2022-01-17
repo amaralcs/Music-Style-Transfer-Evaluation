@@ -22,7 +22,7 @@ import time
 import data_class
 from sklearn.model_selection import train_test_split
 from sklearn.utils import class_weight
-import tensorflow as tf
+# import tensorflow as tf
 from keras.backend.tensorflow_backend import set_session
 import pretty_midi as pm
 import sys
