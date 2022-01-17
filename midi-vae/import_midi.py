@@ -7,6 +7,7 @@ import sys
 import numpy as np
 import pickle
 from sklearn.model_selection import train_test_split
+from mido.midifiles.meta import KeySignatureError
 
 print_anything = False
 
@@ -16,7 +17,7 @@ def load_rolls(path, name):
     #if it fails, return all None objects
     try:
         mid = pm.PrettyMIDI(path + name)
-    except (ValueError, EOFError, IndexError, OSError, KeyError, ZeroDivisionError, AttributeError) as e:
+    except (ValueError, EOFError, IndexError, OSError, KeyError, ZeroDivisionError, AttributeError, KeySignatureError) as e:
         exception_str = 'Unexpected error in ' + name  + ':\n', e, sys.exc_info()[0]
         print(exception_str)
         return None, None, None, None, None, None
