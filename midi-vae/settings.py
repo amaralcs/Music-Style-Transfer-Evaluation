@@ -5,6 +5,7 @@ import numpy as np
 
 
 # This is where you should put your midi files
+# TODO: Important
 source_folder = 'data/original/'
 
 # fast way to import data once you have preprocessed them and saved in a pickle file
@@ -33,7 +34,8 @@ do_not_sample_in_evaluation = True
 
 
 # Folder names or file names will be classified by those labels
-classes = ['style1', 'style2'] #list of strings like 'Bach', 'Mozart'. Name a folder in your source_folder like that and make sure there are no files with that name
+# TODO: Important
+classes = ['Jazz', 'Pop'] #list of strings like 'Bach', 'Mozart'. Name a folder in your source_folder like that and make sure there are no files with that name
 
 #whether to include unknown classes as a third class
 include_unknown = False 
@@ -68,7 +70,7 @@ save_preprocessed_midi = False
 smaller_training_set_factor = 1.0 #multiply training set size by that factor (if higher than 1.0, will have unbalanced dataset if split_equally_to_train_and_test)
 
 high_crop = 84 #where to cut off high notes. 84 = C6
-low_crop = 24#where to cut off low notes. 24=C1
+low_crop = 24 #where to cut off low notes. 24=C1
 num_notes = 128 #constant for MIDI
 new_num_notes = high_crop - low_crop #the actual number of pitches to use
 SMALLEST_NOTE = 16 #set this to 16, if you want to include 16th notes as smallest notes. has to be a multiple of 4
@@ -231,7 +233,7 @@ meta_next_notes_teacher_force=False #Not implemented in vae_training or vae_eval
 
 activation_before_splitting='tanh'
 
-epochs = 2000
+epochs = 2
 test_step = 1
 verbose = True
 show_plot = False
