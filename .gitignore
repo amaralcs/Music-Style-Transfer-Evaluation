@@ -5,4 +5,5 @@ papers/
 __pycache__/
 .vscode/
 midi-vae/models/*
+midi-vae/pickles/*
 chordgan/converted/*

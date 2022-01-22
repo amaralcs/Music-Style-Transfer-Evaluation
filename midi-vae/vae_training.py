@@ -16,7 +16,7 @@ import _pickle as pickle
 import time
 import vae_definition
 from vae_definition import VAE
-# import tensorflow as tf
+import tensorflow as tf
 from keras.backend.tensorflow_backend import set_session
 from sklearn.utils import class_weight
 from sklearn.model_selection import train_test_split
@@ -30,6 +30,10 @@ from matplotlib2tikz import save as tikz_save
 # ----------------------------------------------------------------------------------------------
 # Set parameters for training session (not for VAE)
 # ----------------------------------------------------------------------------------------------
+
+configuration = tf.compat.v1.ConfigProto()
+configuration.gpu_options.allow_growth = True
+session = tf.compat.v1.Session(config=configuration)
 
 # Path where the polyphonic models are saved:
 model_path = 'models/autoencode/vae/'
