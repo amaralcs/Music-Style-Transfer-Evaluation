@@ -2,16 +2,18 @@ name: midi-vae
 channels:
   - conda-forge
   - defaults
+  - main
 dependencies:
   - pretty_midi==0.2.9
+  - keras==2.2.4
+  - scikit-learn
+  - tensorflow-gpu==1.14.0
+  - tensorflow-estimator==1.14.0
+  - scipy
+  - numpy
   - black
   - matplotlib
   - tikzplotlib
-  - keras==2.2.4
-  - numpy
-  - scikit-learn
   - progressbar2
-  - scipy
-  - tensorflow-gpu==1.15
   - matplotlib2tikz
   
