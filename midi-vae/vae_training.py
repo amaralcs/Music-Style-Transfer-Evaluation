@@ -36,7 +36,7 @@ configuration.gpu_options.allow_growth = True
 session = tf.compat.v1.Session(config=configuration)
 
 # Path where the polyphonic models are saved:
-model_path = 'models/autoencode/vae/'
+model_path = 'models/autoencoder/vae/'
 model_filetype = '.pickle'
 
 assert(output_length > 0)
@@ -307,27 +307,27 @@ def test():
 
             count = 1
             total_test_notes_loss += loss[enumerated_metric_names.index('decoder_loss_' + str(count))]
-            total_test_accuracy += loss[enumerated_metric_names.index('decoder_acc_1')]
+            total_test_accuracy += loss[enumerated_metric_names.index('decoder_acc')]
             
             if meta_instrument:
                 count +=1
                 total_test_meta_instrument_loss += loss[enumerated_metric_names.index('decoder_loss_' + str(count))]
-                total_test_meta_instrument_accuracy += loss[enumerated_metric_names.index('decoder_acc_' + str(count))]
+                total_test_meta_instrument_accuracy += loss[enumerated_metric_names.index('decoder_acc_' + str(count-1))]
 
             if meta_velocity:
                 count += 1
                 total_test_meta_velocity_loss += loss[enumerated_metric_names.index('decoder_loss_' + str(count))]
-                total_test_meta_velocity_accuracy += loss[enumerated_metric_names.index('decoder_acc_' + str(count))]
+                total_test_meta_velocity_accuracy += loss[enumerated_metric_names.index('decoder_acc_' + str(count-1))]
 
             if meta_held_notes:
                 count += 1
                 total_test_meta_held_notes_loss += loss[enumerated_metric_names.index('decoder_loss_' + str(count))]
-                total_test_meta_held_notes_accuracy += loss[enumerated_metric_names.index('decoder_acc_' + str(count))]
+                total_test_meta_held_notes_accuracy += loss[enumerated_metric_names.index('decoder_acc_' + str(count-1))]
 
             if meta_next_notes:
                 count += 1
                 total_test_meta_next_notes_loss += loss[enumerated_metric_names.index('decoder_loss_' + str(count))]
-                total_test_meta_next_notes_accuracy += loss[enumerated_metric_names.index('decoder_acc_' + str(count))]
+                total_test_meta_next_notes_accuracy += loss[enumerated_metric_names.index('decoder_acc_' + str(count-1))]
 
         else:
             if len(enumerated_metric_names) > 2:
@@ -370,7 +370,7 @@ def test():
         total_test_composer_loss_array.append(composer_loss)
         total_test_composer_accuracy_array.append(composer_accuracy)
         print('\nTest composer accuracy: ', composer_accuracy)
-        print('Test composer loss: ', composer_loss)
+        # print('Test composer loss: ', composer_loss)
         axarr[1,1].plot(total_test_composer_accuracy_array,  label='Test composer accuracy')
         axarr[1,0].plot(total_train_composer_accuracy_array,  label='Train composer accuracy')
         axarr[0,1].plot(total_test_composer_loss_array,  label='Test composer loss')
@@ -392,8 +392,8 @@ def test():
         axarr[0,1].plot(total_test_meta_instrument_loss_array, label='Test instrument loss')
         axarr[0,0].plot(total_train_meta_instrument_loss_array, label='Train instrument loss')
         pickle.dump(total_test_meta_instrument_loss_array,open(model_path+'total_test_meta_instrument_loss_array.pickle', 'wb'))
-        pickle.dump(total_test_meta_instrument_accuracy_array,open(model_path+'total_test_meta_instrument_accuracy_array.pickle', 'wb'))
         pickle.dump(total_train_meta_instrument_loss_array,open(model_path+'total_train_meta_instrument_loss_array.pickle', 'wb'))
+        pickle.dump(total_test_meta_instrument_accuracy_array,open(model_path+'total_test_meta_instrument_accuracy_array.pickle', 'wb'))
         pickle.dump(total_train_meta_instrument_accuracy_array,open(model_path+'total_train_meta_instrument_accuracy_array.pickle', 'wb'))
 
     if meta_held_notes:
@@ -408,8 +408,8 @@ def test():
         axarr[0,1].plot(total_test_meta_held_notes_loss_array, label='Test held_notes loss')
         axarr[0,0].plot(total_train_meta_held_notes_loss_array, label='Train held_notes loss')
         pickle.dump(total_test_meta_held_notes_loss_array,open(model_path+'total_test_meta_held_notes_loss_array.pickle', 'wb'))
-        pickle.dump(total_test_meta_held_notes_accuracy_array,open(model_path+'total_test_meta_held_notes_accuracy_array.pickle', 'wb'))
         pickle.dump(total_train_meta_held_notes_loss_array,open(model_path+'total_train_meta_held_notes_loss_array.pickle', 'wb'))
+        pickle.dump(total_test_meta_held_notes_accuracy_array,open(model_path+'total_test_meta_held_notes_accuracy_array.pickle', 'wb'))
         pickle.dump(total_train_meta_held_notes_accuracy_array,open(model_path+'total_train_meta_held_notes_accuracy_array.pickle', 'wb'))
 
     if meta_next_notes:
@@ -424,8 +424,8 @@ def test():
         axarr[0,1].plot(total_test_meta_next_notes_loss_array, label='Test next_notes loss')
         axarr[0,0].plot(total_train_meta_next_notes_loss_array, label='Train next_notes loss')
         pickle.dump(total_test_meta_next_notes_loss_array,open(model_path+'total_test_meta_next_notes_loss_array.pickle', 'wb'))
-        pickle.dump(total_test_meta_next_notes_accuracy_array,open(model_path+'total_test_meta_next_notes_accuracy_array.pickle', 'wb'))
         pickle.dump(total_train_meta_next_notes_loss_array,open(model_path+'total_train_meta_next_notes_loss_array.pickle', 'wb'))
+        pickle.dump(total_test_meta_next_notes_accuracy_array,open(model_path+'total_test_meta_next_notes_accuracy_array.pickle', 'wb'))
         pickle.dump(total_train_meta_next_notes_accuracy_array,open(model_path+'total_train_meta_next_notes_accuracy_array.pickle', 'wb'))
 
     if composer_decoder_at_notes_output:
@@ -440,8 +440,8 @@ def test():
         axarr[0,1].plot(total_test_composer_notes_loss_array, label='Test composer_notes loss')
         axarr[0,0].plot(total_train_composer_notes_loss_array, label='Train composer_notes loss')
         pickle.dump(total_test_composer_notes_loss_array,open(model_path+'total_test_composer_notes_loss_array.pickle', 'wb'))
-        pickle.dump(total_test_composer_notes_accuracy_array,open(model_path+'total_test_composer_notes_accuracy_array.pickle', 'wb'))
         pickle.dump(total_train_composer_notes_loss_array,open(model_path+'total_train_composer_notes_loss_array.pickle', 'wb'))
+        pickle.dump(total_test_composer_notes_accuracy_array,open(model_path+'total_test_composer_notes_accuracy_array.pickle', 'wb'))
         pickle.dump(total_train_composer_notes_accuracy_array,open(model_path+'total_train_composer_notes_accuracy_array.pickle', 'wb'))
 
     if composer_decoder_at_instrument_output:
@@ -456,8 +456,8 @@ def test():
         axarr[0,1].plot(total_test_composer_instrument_loss_array, label='Test composer_instrument loss')
         axarr[0,0].plot(total_train_composer_instrument_loss_array, label='Train composer_instrument loss')
         pickle.dump(total_test_composer_instrument_loss_array,open(model_path+'total_test_composer_instrument_loss_array.pickle', 'wb'))
-        pickle.dump(total_test_composer_instrument_accuracy_array,open(model_path+'total_test_composer_instrument_accuracy_array.pickle', 'wb'))
         pickle.dump(total_train_composer_instrument_loss_array,open(model_path+'total_train_composer_instrument_loss_array.pickle', 'wb'))
+        pickle.dump(total_test_composer_instrument_accuracy_array,open(model_path+'total_test_composer_instrument_accuracy_array.pickle', 'wb'))
         pickle.dump(total_train_composer_instrument_accuracy_array,open(model_path+'total_train_composer_instrument_accuracy_array.pickle', 'wb'))
 
     accuracy = total_test_accuracy/test_set_size
@@ -508,14 +508,14 @@ def test():
         #Don't plot signature accuracy since it makes no sense in regression problem
         #print('Test signature accuracy: ', signature_accuracy)
         print('Test signature loss: ', signature_loss)
-        #axarr[1,1].plot(total_test_signature_accuracy_array, label='Test signature accuracy')
-        #axarr[1,0].plot(total_train_signature_accuracy_array, label='Train signature accuracy')
+        axarr[1,1].plot(total_test_signature_accuracy_array, label='Test signature accuracy')
+        axarr[1,0].plot(total_train_signature_accuracy_array, label='Train signature accuracy')
         axarr[0,1].plot(total_test_signature_loss_array, label='Test signature loss')
         axarr[0,0].plot(total_train_signature_loss_array, label='Train signature loss')
         pickle.dump(total_test_signature_loss_array,open(model_path+'total_test_signature_loss_array.pickle', 'wb'))
-        #pickle.dump(total_test_signature_accuracy_array,open(model_path+'total_test_signature_accuracy_array.pickle', 'wb'))
+        pickle.dump(total_test_signature_accuracy_array,open(model_path+'total_test_signature_accuracy_array.pickle', 'wb'))
         pickle.dump(total_train_signature_loss_array,open(model_path+'total_train_signature_loss_array.pickle', 'wb'))
-        #pickle.dump(total_train_signature_accuracy_array,open(model_path+'total_train_signature_accuracy_array.pickle', 'wb'))
+        pickle.dump(total_train_signature_accuracy_array,open(model_path+'total_train_signature_accuracy_array.pickle', 'wb'))
     
 
     
@@ -822,29 +822,23 @@ for e in range(start_epoch, epochs):
         #make sure you have installed keras=2.0.8 if you receive only one loss instead of decoder_loss_0,1,2... for each output
         #did not work for keras=2.1.4
         if meta_instrument or meta_velocity or meta_held_notes or meta_next_notes:
-            count = 1
-            total_train_accuracy += np.mean(hist.history['decoder_acc_' + str(count)])
-            total_train_notes_loss += np.mean(hist.history['decoder_loss_' + str(count)])
+            count = 0
+            total_train_accuracy += np.mean(hist.history['decoder_acc'])
             if meta_instrument:
                 count += 1
                 total_train_meta_instrument_accuracy += np.mean(hist.history['decoder_acc_' + str(count)])
-                total_train_meta_instrument_loss += np.mean(hist.history['decoder_loss_' + str(count)])
             if meta_velocity:
                 count += 1
                 total_train_meta_velocity_accuracy += np.mean(hist.history['decoder_acc_' + str(count)])
-                total_train_meta_velocity_loss += np.mean(hist.history['decoder_loss_' + str(count)])
             if meta_held_notes:
                 count += 1
                 total_train_meta_held_notes_accuracy += np.mean(hist.history['decoder_acc_' + str(count)])
-                total_train_meta_held_notes_loss += np.mean(hist.history['decoder_loss_' + str(count)])
             if meta_next_notes:
                 count += 1
                 total_train_meta_next_notes_accuracy += np.mean(hist.history['decoder_acc_' + str(count)])
-                total_train_meta_next_notes_loss += np.mean(hist.history['decoder_loss_' + str(count)])
         else:
             if len(hist.history.keys()) > 2:
                 total_train_accuracy += np.mean(hist.history['decoder_acc'])
-                total_train_notes_loss += np.mean(hist.history['decoder_loss'])
             else:
                 total_train_accuracy += np.mean(hist.history['acc'])
                 total_train_notes_loss += np.mean(hist.history['loss'])
@@ -870,76 +864,49 @@ for e in range(start_epoch, epochs):
     total_train_loss = total_train_loss/train_set_size
     total_train_accuracy = total_train_accuracy/train_set_size
 
-    total_train_notes_loss = total_train_notes_loss/train_set_size
-    total_train_notes_loss_array.append(total_train_notes_loss)
-
     total_train_loss_array.append(total_train_loss)
     total_train_accuracy_array.append(total_train_accuracy)
 
     if meta_instrument:
         train_meta_instrument_accuracy = total_train_meta_instrument_accuracy/train_set_size
-        train_meta_instrument_loss = total_train_meta_instrument_loss/train_set_size
         total_train_meta_instrument_accuracy_array.append(train_meta_instrument_accuracy) 
-        total_train_meta_instrument_loss_array.append(train_meta_instrument_loss)
         print("Train instrument meta accuracy: ", train_meta_instrument_accuracy) 
-        print("Train instrument meta loss: ", train_meta_instrument_loss)
 
     if meta_velocity:
         train_meta_velocity_accuracy = total_train_meta_velocity_accuracy/train_set_size
-        train_meta_velocity_loss = total_train_meta_velocity_loss/train_set_size
         total_train_meta_velocity_accuracy_array.append(train_meta_velocity_accuracy) 
-        total_train_meta_velocity_loss_array.append(train_meta_velocity_loss)
         if combine_velocity_and_held_notes:
             print("Train velocity meta accuracy: ", train_meta_velocity_accuracy) 
-        print("Train velocity meta loss: ", train_meta_velocity_loss)
 
     if meta_held_notes:
         train_meta_held_notes_accuracy = total_train_meta_held_notes_accuracy/train_set_size
-        train_meta_held_notes_loss = total_train_meta_held_notes_loss/train_set_size
         total_train_meta_held_notes_accuracy_array.append(train_meta_held_notes_accuracy) 
-        total_train_meta_held_notes_loss_array.append(train_meta_held_notes_loss)
         print("Train held_notes meta accuracy: ", train_meta_held_notes_accuracy) 
-        print("Train held_notes meta loss: ", train_meta_held_notes_loss)
 
     if meta_next_notes:
         train_meta_next_notes_accuracy = total_train_meta_next_notes_accuracy/train_set_size
-        train_meta_next_notes_loss = total_train_meta_next_notes_loss/train_set_size
         total_train_meta_next_notes_accuracy_array.append(train_meta_next_notes_accuracy) 
-        total_train_meta_next_notes_loss_array.append(train_meta_next_notes_loss)
         print("Train next_notes meta accuracy: ", train_meta_next_notes_accuracy) 
-        print("Train next_notes meta loss: ", train_meta_next_notes_loss)
 
     if include_composer_decoder:
         train_composer_accuracy = total_train_composer_accuracy/train_set_size
-        train_composer_loss = total_train_composer_loss/train_set_size
         total_train_composer_accuracy_array.append(train_composer_accuracy)
-        total_train_composer_loss_array.append(train_composer_loss)
         print("Train composer accuracy: ", train_composer_accuracy) 
-        print("Train composer loss: ", train_composer_loss)
 
     if signature_decoder:
         train_signature_accuracy = total_train_signature_accuracy/train_set_size
-        train_signature_loss = total_train_signature_loss/train_set_size
         total_train_signature_accuracy_array.append(train_signature_accuracy)
-        total_train_signature_loss_array.append(train_signature_loss)
-        #print("Train signature accuracy: ", train_signature_accuracy) 
-        print("Train signature loss: ", train_signature_loss)
+        print("Train signature accuracy: ", train_signature_accuracy) 
 
     if composer_decoder_at_notes_output:
         train_composer_notes_accuracy = total_train_composer_notes_accuracy/train_set_size
-        train_composer_notes_loss = total_train_composer_notes_loss/train_set_size
         total_train_composer_notes_accuracy_array.append(train_composer_notes_accuracy)
-        total_train_composer_notes_loss_array.append(train_composer_notes_loss)
         print("Train composer_notes accuracy: ", train_composer_notes_accuracy) 
-        print("Train composer_notes loss: ", train_composer_notes_loss)
 
     if composer_decoder_at_instrument_output:
         train_composer_instrument_accuracy = total_train_composer_instrument_accuracy/train_set_size
-        train_composer_instrument_loss = total_train_composer_instrument_loss/train_set_size
         total_train_composer_instrument_accuracy_array.append(train_composer_instrument_accuracy)
-        total_train_composer_instrument_loss_array.append(train_composer_instrument_loss)
         print("Train composer_instrument accuracy: ", train_composer_instrument_accuracy) 
-        print("Train composer_instrument loss: ", train_composer_instrument_loss)
 
 
 
@@ -948,14 +915,6 @@ for e in range(start_epoch, epochs):
 
     if beta>0:
         kl_loss = total_train_loss - total_train_notes_loss * 1.0
-        if include_composer_decoder: kl_loss -= train_composer_loss * composer_weight
-        if meta_instrument: kl_loss -= train_meta_instrument_loss * meta_instrument_weight
-        if meta_velocity: kl_loss -= train_meta_velocity_loss * meta_velocity_weight
-        if meta_held_notes: kl_loss -= train_meta_held_notes_loss * meta_held_notes_weight
-        if meta_next_notes: kl_loss -= train_meta_next_notes_loss * meta_next_notes_weight
-        if signature_decoder: kl_loss -= train_signature_loss * signature_weight
-        if composer_decoder_at_notes_output: kl_loss -= train_composer_notes_loss * composer_decoder_at_notes_weight
-        if composer_decoder_at_instrument_output: kl_loss -= train_composer_instrument_loss * composer_decoder_at_instrument_weight
         #since you get the value back weighted, scale back by dividing by beta
         kl_loss = kl_loss / beta
         total_train_kl_loss_array.append(kl_loss)
@@ -969,15 +928,12 @@ for e in range(start_epoch, epochs):
     if e% save_step is 0:
         print('saving model')
         autoencoder_save_path = model_path + 'autoencoder' + 'Epoch' + str(e) + model_filetype
-        #autoencoder.save(autoencoder_save_path)
         autoencoder.save_weights(autoencoder_save_path)
 
         encoder_save_path = model_path + 'encoder' + 'Epoch' + str(e) + model_filetype
-        #encoder.save(encoder_save_path)
         encoder.save_weights(encoder_save_path)
 
         decoder_save_path = model_path + 'decoder' + 'Epoch' + str(e) + model_filetype
-        #decoder.save(decoder_save_path)
         decoder.save_weights(decoder_save_path)
         
 

@@ -56,7 +56,7 @@ t = str(int(round(time.time())))
 #activate the fast route to not always have to preprocess midi files
 load_from_pickle_instead_of_midi = False
 
-save_imported_midi_as_pickle = True
+save_imported_midi_as_pickle = False
 if save_imported_midi_as_pickle:
     pickle_store_folder = 'pickles/' + t + "/" #folder where pickles are stored (!= where loaded)
     if not os.path.exists(pickle_store_folder):
