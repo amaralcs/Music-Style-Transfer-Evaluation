@@ -3,3 +3,6 @@ timeline.png
 data/
 papers/
 __pycache__/
+midi-vae/models/*
+chordgan/converted/*
+.vscode/*
