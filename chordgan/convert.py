@@ -8,16 +8,23 @@ def forward(t):
     #prettymidi piano roll to ganmidi piano roll
     #midi_data = pretty_midi.PrettyMIDI('Barbie Girl - Chorus.mid')
     #t = midi_data.get_piano_roll(fs=16)
-    ret = t[24:102, :]
+    ret = t[24:102, :] # Pitches between C1 and F7 (perhaps it was meant to be 108 which is C8)
+    
+    # Standardize velocity (i.e. have only note on or off)
     for i in np.arange(np.shape(ret)[0]):
         for j in np.arange(np.shape(ret)[1]):
             if(ret[i,j]>0):
                 ret[i,j] = 1
+
+    # Create an array for the rhythm (i.e. note onsets)
+    # The first loop initializes the array at the start of the song
     rhythm = np.zeros((78, np.shape(ret)[1]))
     for i in np.arange(np.shape(ret)[0]):
         if(ret[i, 0] > 0):
             rhythm[i, 0] = 1
 
+    # The next loop goes through the song and if marks beats when the current 
+    # pitch is non-zero and the previous pitch is zero
     for i in np.arange(np.shape(ret)[0]):
         for j in np.arange(np.shape(ret)[1]):
             if(j == 0):
@@ -25,8 +32,9 @@ def forward(t):
 
             if(ret[i, j] > 0 and ret[i, j-1] == 0):
                 rhythm[i, j] = 1
-    res = np.concatenate((ret, rhythm))
-    res = res[:, ::2]
+    # concatenates along first axis, creating a (156, time-steps) array
+    res = np.concatenate((ret, rhythm)) 
+    res = res[:, ::2] # Only take every second note. Why?
     res = np.transpose(res)
     return res
 
