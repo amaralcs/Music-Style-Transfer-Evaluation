@@ -7,3 +7,4 @@ __pycache__/
 midi-vae/models/*
 midi-vae/pickles/*
 chordgan/converted/*
+cyclegan/new_data/
