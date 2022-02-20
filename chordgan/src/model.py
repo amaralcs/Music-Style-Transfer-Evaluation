@@ -30,13 +30,13 @@ class ChordGAN(Model):
         ----------
         X_dim : int
             The number of dimensions of the song input.
-        Z_dim : int 
-            The number of dimensions of the chromagram input.  
+        Z_dim : int
+            The number of dimensions of the chromagram input.
         generator_units : int
         discriminator_units : int
         lambda_ : int
             The value of lambda_, a parameter controling ____ TODO: fill in
-        loss_func : Instance of tf.keras.losses 
+        loss_func : Instance of tf.keras.losses
             The type of loss to use for the generated fake samples.
         name : str
             The name of the model.
@@ -58,10 +58,10 @@ class ChordGAN(Model):
         ----------
         X_dim : int
             The number of dimensions of the song input.
-        Z_dim : int 
+        Z_dim : int
             The number of dimensions of the chromagram input.
 
-        Returns 
+        Returns
         -------
         tensorflow.keras.models.Model
             The generator model.
@@ -115,10 +115,10 @@ class ChordGAN(Model):
         ----------
         X_dim : int
             The number of dimensions of the song input.
-        Z_dim : int 
+        Z_dim : int
             The number of dimensions of the chromagram input.
 
-        Returns 
+        Returns
         -------
         tensorflow.keras.models.Model
             The discriminator model.
@@ -144,8 +144,7 @@ class ChordGAN(Model):
         return discriminator
 
     def discriminator_loss(y_true, y_preds):
-        """TODO: docstring
-        """
+        """TODO: docstring"""
         D_true_logits = y_true
         D_fake_logits = y_preds
         binary_cross_entropy = BinaryCrossentropy(from_logits=True)
@@ -186,8 +185,12 @@ class ChordGAN(Model):
         g_grads = g_tape.gradient(g_loss, self.generator.trainable_variables)
         d_grads = d_tape.gradient(d_loss, self.discriminator.trainable_variables)
 
-        self.g_optimizer.apply_gradients(zip(g_grads, self.generator.trainable_variables))
-        self.d_optimizer.apply_gradients(zip(d_grads, self.discriminator.trainable_variables))
+        self.g_optimizer.apply_gradients(
+            zip(g_grads, self.generator.trainable_variables)
+        )
+        self.d_optimizer.apply_gradients(
+            zip(d_grads, self.discriminator.trainable_variables)
+        )
 
         # TODO: How to save the loss?
         # if loss_writer:
@@ -195,7 +198,7 @@ class ChordGAN(Model):
         #         tf.summary.scalar("G_loss", G_loss, step=step)
         #         tf.summary.scalar("D_loss", D_loss, step=step)
 
-        return {"d_loss": d_loss, "g_loss" : g_loss}
+        return {"d_loss": d_loss, "g_loss": g_loss}
 
     def call(self, inputs):
         """
