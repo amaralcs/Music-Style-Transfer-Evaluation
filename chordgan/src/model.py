@@ -12,24 +12,60 @@ def xavier_init(size, dtype=None):
     return tf.random.normal(shape=size, stddev=xavier_stddev)
 
 
-class ChordGANGenerator(Model):
+class ChordGAN(Model):
     def __init__(
         self,
         X_dim,
         Z_dim,
         generator_units=128,
+        discriminator_units=512,
         lambda_=100,
         loss_func=MeanSquaredError(),
-        name="ChordGANGenerator",
+        name="ChordGAN",
         **kwargs,
     ):
-        super(ChordGANGenerator, self).__init__(name=name, **kwargs)
+        """Instantiates the ChordGAN class.
+
+        Parameters
+        ----------
+        X_dim : int
+            The number of dimensions of the song input.
+        Z_dim : int 
+            The number of dimensions of the chromagram input.  
+        generator_units : int
+        discriminator_units : int
+        lambda_ : int
+            The value of lambda_, a parameter controling ____ TODO: fill in
+        loss_func : Instance of tf.keras.losses 
+            The type of loss to use for the generated fake samples.
+        name : str
+            The name of the model.
+        **kwargs :
+            Other parameters to be passed to tf.keras.models.Model
+        """
+        super(ChordGAN, self).__init__(name=name, **kwargs)
         self.generator_units = generator_units
+        self.discriminator_units = discriminator_units
         self.lambda_ = lambda_
         self.loss_func = loss_func
         self.generator = self._build_generator(X_dim, Z_dim)
+        self.discriminator = self._build_discriminator(X_dim, Z_dim)
 
     def _build_generator(self, X_dim, Z_dim):
+        """Builds the generator using the Keras functional API.
+
+        Parameters
+        ----------
+        X_dim : int
+            The number of dimensions of the song input.
+        Z_dim : int 
+            The number of dimensions of the chromagram input.
+
+        Returns 
+        -------
+        tensorflow.keras.models.Model
+            The generator model.
+        """
         inputs = Input(shape=[None, Z_dim], name="g_input")
         z = Dense(
             self.generator_units,
@@ -72,36 +108,21 @@ class ChordGANGenerator(Model):
         G_loss = tf.reduce_mean(self.loss_func(true_samples, fake_samples))
         return G_fooling + self.lambda_ * G_loss
 
-    def call(self, inputs):
-        print("gen input shape", inputs.shape)
-        self.generator.add_loss(self.generator_loss)
-        return self.generator(inputs)
-
-    def summary(self):
-        self.generator.summary()
-
-
-class ChordGANDiscriminator(Model):
-    def __init__(
-        self,
-        X_dim,
-        Z_dim,
-        generator_units=128,
-        discriminator_units=512,
-        lambda_=100,
-        loss_func=MeanSquaredError(),
-        name="ChordGANDiscriminator",
-        **kwargs,
-    ):
-        super(ChordGANDiscriminator, self).__init__(name=name, **kwargs)
-        self.generator_units = generator_units
-        self.discriminator_units = discriminator_units
-        self.lambda_ = lambda_
-        self.loss_func = loss_func
-
-        self.discriminator = self._build_discriminator(X_dim, Z_dim)
-
     def _build_discriminator(self, X_dim, Z_dim):
+        """Builds the discriminator using the Keras functional API.
+
+        Parameters
+        ----------
+        X_dim : int
+            The number of dimensions of the song input.
+        Z_dim : int 
+            The number of dimensions of the chromagram input.
+
+        Returns 
+        -------
+        tensorflow.keras.models.Model
+            The discriminator model.
+        """
         data_inputs = Input(shape=(None, X_dim), name="data_input")
         chroma_inputs = Input(shape=(None, Z_dim), name="chroma_input")
 
@@ -123,6 +144,8 @@ class ChordGANDiscriminator(Model):
         return discriminator
 
     def discriminator_loss(y_true, y_preds):
+        """TODO: docstring
+        """
         D_true_logits = y_true
         D_fake_logits = y_preds
         binary_cross_entropy = BinaryCrossentropy(from_logits=True)
@@ -137,9 +160,53 @@ class ChordGANDiscriminator(Model):
         )
         return D_true_loss + D_fake_loss
 
+    def compile(self, d_optimizer, g_optimizer):
+        """Compiles the model given optimizers for the discriminator and generator.
+
+        Parameters
+        ----------
+        d_optimizer : tf.keras.optimizer
+        g_optimizer : tf.keras.optimizer
+        """
+        super(ChordGAN, self).compile()
+        self.d_optimizer = d_optimizer
+        self.g_optimizer = g_optimizer
+
+    def train_step(self, inputs):
+        actual_song, chroma = inputs
+        fake_song = self.generator(chroma, training=True)
+
+        with tf.GradientTape() as d_tape, tf.GradientTape as g_tape:
+            d_true_logits, _ = self.discriminator([actual_song, chroma], training=True)
+            d_fake_logits, _ = self.discriminator([fake_song, chroma], training=True)
+
+            g_loss = self._generator_loss(d_fake_logits, fake_song, actual_song)
+            d_loss = self._discriminator_loss(d_true_logits, d_fake_logits)
+
+        g_grads = g_tape.gradient(g_loss, self.generator.trainable_variables)
+        d_grads = d_tape.gradient(d_loss, self.discriminator.trainable_variables)
+
+        self.g_optimizer.apply_gradients(zip(g_grads, self.generator.trainable_variables))
+        self.d_optimizer.apply_gradients(zip(d_grads, self.discriminator.trainable_variables))
+
+        # TODO: How to save the loss?
+        # if loss_writer:
+        #     with loss_writer.as_default():
+        #         tf.summary.scalar("G_loss", G_loss, step=step)
+        #         tf.summary.scalar("D_loss", D_loss, step=step)
+
+        return {"d_loss": d_loss, "g_loss" : g_loss}
+
     def call(self, inputs):
-        self.discriminator.add_loss(self.discriminator_loss)
-        return self.discriminator(inputs)
+        """
+        The call method is independent from the training, But I need to implement something that makes sense.
+        Perhaps just calling the generator given the chroma inputs?
+        """
+        pass
+        # print("gen input shape", inputs.shape)
+        # self.generator.add_loss(self.generator_loss)
+        # return self.generator(inputs)
 
     def summary(self):
+        self.generator.summary()
         self.discriminator.summary()
