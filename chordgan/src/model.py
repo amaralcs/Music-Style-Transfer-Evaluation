@@ -4,6 +4,8 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, Input, Concatenate
 from tensorflow.keras.activations import sigmoid
 from tensorflow.keras.losses import BinaryCrossentropy, MeanSquaredError
+from tensorflow.keras.optimizers import Adam
+
 
 
 def xavier_init(size, dtype=None):
@@ -51,6 +53,10 @@ class ChordGAN(Model):
         self.generator = self._build_generator(X_dim, Z_dim)
         self.discriminator = self._build_discriminator(X_dim, Z_dim)
 
+        # used in the losses
+        self.binary_cross_entropy = BinaryCrossentropy(from_logits=True)
+
+
     def _build_generator(self, X_dim, Z_dim):
         """Builds the generator using the Keras functional API.
 
@@ -66,7 +72,7 @@ class ChordGAN(Model):
         tensorflow.keras.models.Model
             The generator model.
         """
-        inputs = Input(shape=[None, Z_dim], name="g_input")
+        inputs = Input(shape=(None, Z_dim), name="g_input")
         z = Dense(
             self.generator_units,
             kernel_initializer=xavier_init,
@@ -75,6 +81,7 @@ class ChordGAN(Model):
         output = Dense(X_dim, kernel_initializer=xavier_init, activation="sigmoid")(z)
 
         generator = Model(inputs=[inputs], outputs=[output], name="generator")
+        generator.add_loss(self.generator_loss)
         return generator
 
     def generator_loss(self, y_true, y_preds):
@@ -99,11 +106,9 @@ class ChordGAN(Model):
         true_samples = y_true
         D_fake_logits, fake_samples = y_preds
 
-        binary_cross_entropy = BinaryCrossentropy(from_logits=True)
-
         # Probability the generator fooled the discriminator (i.e. all predictions on fake samples were labelled 1)
         G_fooling = tf.reduce_mean(
-            binary_cross_entropy(tf.ones_like(D_fake_logits), D_fake_logits)
+            self.binary_cross_entropy(tf.ones_like(D_fake_logits), D_fake_logits)
         )
         G_loss = tf.reduce_mean(self.loss_func(true_samples, fake_samples))
         return G_fooling + self.lambda_ * G_loss
@@ -143,23 +148,22 @@ class ChordGAN(Model):
         discriminator.add_loss(self.discriminator_loss)
         return discriminator
 
-    def discriminator_loss(y_true, y_preds):
+    def discriminator_loss(self, y_true, y_preds):
         """TODO: docstring"""
         D_true_logits = y_true
         D_fake_logits = y_preds
-        binary_cross_entropy = BinaryCrossentropy(from_logits=True)
 
         # Discriminator should identify the true samples as 1s
         D_true_loss = tf.reduce_mean(
-            binary_cross_entropy(tf.ones_like(D_true_logits), D_true_logits)
+            self.binary_cross_entropy(tf.ones_like(D_true_logits), D_true_logits)
         )
         # And the fake samples as 0s
         D_fake_loss = tf.reduce_mean(
-            binary_cross_entropy(tf.zeros_like(D_fake_logits), D_fake_logits)
+            self.binary_cross_entropy(tf.zeros_like(D_fake_logits), D_fake_logits)
         )
         return D_true_loss + D_fake_loss
 
-    def compile(self, d_optimizer, g_optimizer):
+    def compile(self, d_optimizer=Adam(), g_optimizer=Adam()):
         """Compiles the model given optimizers for the discriminator and generator.
 
         Parameters
@@ -173,30 +177,33 @@ class ChordGAN(Model):
 
     def train_step(self, inputs):
         actual_song, chroma = inputs
-        fake_song = self.generator(chroma, training=True)
+        print(fake_song)
 
-        with tf.GradientTape() as d_tape, tf.GradientTape as g_tape:
+        # train the discriminator
+        with tf.GradientTape() as d_tape:
+            fake_song = self.generator(chroma, training=False)
             d_true_logits, _ = self.discriminator([actual_song, chroma], training=True)
             d_fake_logits, _ = self.discriminator([fake_song, chroma], training=True)
 
-            g_loss = self._generator_loss(d_fake_logits, fake_song, actual_song)
-            d_loss = self._discriminator_loss(d_true_logits, d_fake_logits)
+            d_loss = self.discriminator_loss(d_true_logits, d_fake_logits)
 
-        g_grads = g_tape.gradient(g_loss, self.generator.trainable_variables)
-        d_grads = d_tape.gradient(d_loss, self.discriminator.trainable_variables)
-
-        self.g_optimizer.apply_gradients(
-            zip(g_grads, self.generator.trainable_variables)
-        )
+        d_grads = d_tape.gradient(d_loss, self.discriminator.trainable_weights)
         self.d_optimizer.apply_gradients(
-            zip(d_grads, self.discriminator.trainable_variables)
+            zip(d_grads, self.discriminator.trainable_weights)
         )
 
-        # TODO: How to save the loss?
-        # if loss_writer:
-        #     with loss_writer.as_default():
-        #         tf.summary.scalar("G_loss", G_loss, step=step)
-        #         tf.summary.scalar("D_loss", D_loss, step=step)
+        # train the generator
+        with tf.GradientTape() as g_tape:
+            fake_song = self.generator(chroma, training=True)
+
+            d_true_logits, _ = self.discriminator([actual_song, chroma], training=False)
+            d_fake_logits, _ = self.discriminator([fake_song, chroma], training=False)
+            g_loss = self.generator_loss(actual_song, (d_fake_logits, fake_song))
+        
+        g_grads = g_tape.gradient(g_loss, self.generator.trainable_weights)
+        self.g_optimizer.apply_gradients(
+            zip(g_grads, self.generator.trainable_weights)
+        )
 
         return {"d_loss": d_loss, "g_loss": g_loss}
 
