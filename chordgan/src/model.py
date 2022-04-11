@@ -1,3 +1,5 @@
+from functools import reduce
+
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.models import Model
@@ -7,6 +9,8 @@ from tensorflow.keras.losses import BinaryCrossentropy, MeanSquaredError
 from tensorflow.keras.optimizers import Adam
 
 
+import reverse_pianoroll
+import convert
 
 def xavier_init(size, dtype=None):
     input_dim = size[0]
@@ -17,8 +21,9 @@ def xavier_init(size, dtype=None):
 class ChordGAN(Model):
     def __init__(
         self,
-        X_dim,
-        Z_dim,
+        note_range = 78,
+        chroma_dims = 12,
+        n_timesteps = 4,
         generator_units=128,
         discriminator_units=512,
         lambda_=100,
@@ -30,10 +35,11 @@ class ChordGAN(Model):
 
         Parameters
         ----------
-        X_dim : int
-            The number of dimensions of the song input.
-        Z_dim : int
-            The number of dimensions of the chromagram input.
+        note_range : int
+            Range of lowest/highest note on the piano roll
+        chroma_dims : int
+        n_timesteps : int
+            This is the number of timesteps that we will create at a time
         generator_units : int
         discriminator_units : int
         lambda_ : int
@@ -46,16 +52,35 @@ class ChordGAN(Model):
             Other parameters to be passed to tf.keras.models.Model
         """
         super(ChordGAN, self).__init__(name=name, **kwargs)
+        self.note_range = note_range
+        self.chroma_dims = chroma_dims
+        self.n_timesteps = n_timesteps
         self.generator_units = generator_units
         self.discriminator_units = discriminator_units
         self.lambda_ = lambda_
         self.loss_func = loss_func
-        self.generator = self._build_generator(X_dim, Z_dim)
-        self.discriminator = self._build_discriminator(X_dim, Z_dim)
 
+        self.X_dim =  2 * self.note_range * self.n_timesteps  # This is the size of the visible layer.
+        self.Z_dim = self.chroma_dims * self.n_timesteps
+
+        self.generator = self._build_generator(self.X_dim, self.Z_dim)
+        self.discriminator = self._build_discriminator(self.X_dim, self.Z_dim)
+        
         # used in the losses
         self.binary_cross_entropy = BinaryCrossentropy(from_logits=True)
 
+    def get_config(self):
+        base_config = super().get_config()
+        return {
+            **base_config,
+            "note_range": self.note_range,
+            "chroma_dims": self.chroma_dims,
+            "n_timesteps": self.n_timesteps,
+            "generator_units": self.generator_units,
+            "discriminator_units": self.discriminator_units,
+            "lambda_": self.lambda_,
+            "loss_func": self.loss_func,
+        }
 
     def _build_generator(self, X_dim, Z_dim):
         """Builds the generator using the Keras functional API.
@@ -177,7 +202,6 @@ class ChordGAN(Model):
 
     def train_step(self, inputs):
         actual_song, chroma = inputs
-        print(fake_song)
 
         # train the discriminator
         with tf.GradientTape() as d_tape:
@@ -199,24 +223,48 @@ class ChordGAN(Model):
             d_true_logits, _ = self.discriminator([actual_song, chroma], training=False)
             d_fake_logits, _ = self.discriminator([fake_song, chroma], training=False)
             g_loss = self.generator_loss(actual_song, (d_fake_logits, fake_song))
-        
+
         g_grads = g_tape.gradient(g_loss, self.generator.trainable_weights)
-        self.g_optimizer.apply_gradients(
-            zip(g_grads, self.generator.trainable_weights)
-        )
+        self.g_optimizer.apply_gradients(zip(g_grads, self.generator.trainable_weights))
 
         return {"d_loss": d_loss, "g_loss": g_loss}
 
-    def call(self, inputs):
+    def call(self, chroma):
+        """Converts a song given its chroma. The chroma needs to have been correctly reshaped
+        as per the preprocessing function.
+
+        Parameters
+        ----------
+        input_ds
+            Processed dataset with song and chromas
         """
-        The call method is independent from the training, But I need to implement something that makes sense.
-        Perhaps just calling the generator given the chroma inputs?
+        converted_song = self.generator(chroma).numpy()
+
+        S = converted_song.reshape(
+            int(reduce(lambda x, y: x * y, converted_song.shape) / 2 / self.note_range),
+            2 * self.note_range
+        )
+        S_thresh = (S>= 0.5).T
+        # C = chroma.reshape(chroma.shape[0] * self.n_timesteps / self.chroma_dims)
+        output = reverse_pianoroll.piano_roll_to_pretty_midi(convert.back(S_thresh), fs=16)
+        return output
+
+
+    def convert_dataset(self, dataset):
         """
-        pass
-        # print("gen input shape", inputs.shape)
-        # self.generator.add_loss(self.generator_loss)
-        # return self.generator(inputs)
+        TODO: Figure a way of knowing the name of the song being converted
+     
+        Parameters
+        ----------
+        input_ds
+            Processed dataset with song and chromas
+        """
+        converted_songs = []
+        for song, chroma in dataset:
+            converted_songs.append(self.call(chroma))
+        return converted_songs
 
     def summary(self):
         self.generator.summary()
         self.discriminator.summary()
+
