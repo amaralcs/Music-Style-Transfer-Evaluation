@@ -3,6 +3,7 @@ import os
 import shutil
 import json
 import errno
+import sys
 
 import numpy as np
 from pypianoroll import Multitrack, Track, from_pretty_midi
@@ -12,9 +13,9 @@ logger = logging.getLogger("preprocessing_logger")
 logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler())
 
-ROOT_PATH = "new_data"
+ROOT_PATH = "test_preproc"
 GENRE_PATH = "Pop_Music_Midi"
-TEST_RATIO = 0.1
+TEST_RATIO = 0.2
 
 converter_path = os.path.join(ROOT_PATH, "test/converter")
 cleaner_path = os.path.join(ROOT_PATH, "test/cleaner")
@@ -45,6 +46,10 @@ def make_sure_path_exists(path):
     ----------
     path : str
         Name of folder to create.
+    
+    Returns
+    -------
+    None
     """
     try:
         os.makedirs(path)
@@ -98,7 +103,7 @@ def get_midi_info(midi_obj):
 
     return midi_info
 
-def get_merged(multitrack):
+def get_merged_multitrack(multitrack):
     """Return a `pypianoroll.Multitrack` instance with piano-rolls merged to
     five tracks (Bass, Drums, Guitar, Piano and Strings)
     
@@ -175,7 +180,7 @@ def create_multitracks(filepath, multitrack_path):
 
         # This adds the pianoroll to the multitrack
         multitrack = from_pretty_midi(pm)
-        merged = get_merged(multitrack)
+        merged = get_merged_multitrack(multitrack)
 
         make_sure_path_exists(multitrack_path)
         merged.save(os.path.join(multitrack_path, midi_name + ".npz"))
@@ -186,7 +191,7 @@ def create_multitracks(filepath, multitrack_path):
         print(f"There was a type error when loading {midi_name}")
         return None
 
-def midi_filter(midi_info, beat_time=0, time_signature_changes=0, allowed_signatures=["4/4"]):
+def midi_filter(midi_info, beat_time=0, time_signature_changes=1, allowed_signatures=["4/4"]):
     """Return True for qualified midi files and False for unwanted ones.
     
     Files are qualified based on `first_beat_time`, `num_time_signature_change` and
@@ -209,9 +214,9 @@ def midi_filter(midi_info, beat_time=0, time_signature_changes=0, allowed_signat
 # step 2
 def convert_and_clean_midis(
     root_path,
-    cleaned_fpath="test/cleaned",
-    multitrack_path="test/multitrack",
-    test_fpath="test/origin_midi",
+    midi_fpath="origin_midi",
+    filtered_fpath="filtered",
+    multitrack_path="multitrack",
     **filter_kwargs
 ):
     """Loads the midis selected in the first step and converts them to pypianoroll.Multitrack and filters
@@ -222,47 +227,57 @@ def convert_and_clean_midis(
     Parameters
     ----------
     root_path : str
-    cleaned_fpath : str
+        Path to midi file.
+    midi_fpath : str
+        Path to midi files.
+    filtered_fpath : str
+        Output path for cleaned file.
     multitrack_path : st
-    test_fpath : str
+        Output path for multitrack file.
     filter_kwargs : dict
+        Options for filtering MIDI files.
+    Returns
+    -------
+    None
     """
-    
+    # Create full path
+    midi_fpath = os.path.join(root_path, midi_fpath)
+    filtered_fpath = os.path.join(root_path, filtered_fpath)
+    multitrack_path = os.path.join(root_path, multitrack_path)
+
     # First step: load midis, create multitracks of each and save them
-    midi_paths = get_midi_path(os.path.join(ROOT_PATH, "test/origin_midi"))
+    midi_paths = get_midi_path(midi_fpath)
     logging.info(f"Found {len(midi_paths)} midi files")
 
     track_metadata = {}
     midi_tracks = [create_multitracks(midi_path, multitrack_path) for midi_path in midi_paths]
-    for (name, track) in midi_tracks.items():
+    for (name, track) in midi_tracks:
         if name is not None:
             track_metadata[name] = track
 
-    with open(os.path.join(ROOT_PATH, "test/midis.json"), "w") as outfile:
+    with open(os.path.join(root_path, "track_metadata.json"), "w") as outfile:
         json.dump(track_metadata, outfile)
     logging.info("[Done] {} files out of {} have been successfully converted".format(len(track_metadata), len(midi_paths)))
 
 
-    # Second step: open the files filter them based on track information such as beat time, time signature changes..
-    with open(os.path.join(ROOT_PATH, 'test/midis.json')) as infile:
-        track_metadata = json.load(infile)
+    # Second step: filter midis based on track information such as beat time, time signature changes..
     count = 0
-    make_sure_path_exists(cleaned_fpath)
+    make_sure_path_exists(filtered_fpath)
     clean_metadata = {}
     for key in track_metadata:
         if midi_filter(track_metadata[key], **filter_kwargs):
             clean_metadata[key] = track_metadata[key]
             count += 1
             shutil.copyfile(os.path.join(multitrack_path, key + '.npz'),
-                            os.path.join(cleaned_fpath, key + '.npz'))
+                            os.path.join(filtered_fpath, key + '.npz'))
 
-    with open(os.path.join(ROOT_PATH, 'test/midis_clean.json'), 'w') as outfile:
+    with open(os.path.join(root_path, 'filtered_track_metadata.json'), 'w') as outfile:
         json.dump(clean_metadata, outfile)
     logging.info("[Done] {} files out of {} have been successfully cleaned".format(count, len(track_metadata)))
 
 
 # Step 1
-def train_test_split(root_path, genre, test_ratio=0.1):
+def train_test_split(root_path, genre, test_ratio=TEST_RATIO):
     """Splits the files in a given directory into training and test sets
     
     Parameters
@@ -272,8 +287,11 @@ def train_test_split(root_path, genre, test_ratio=0.1):
     test_ratio:
         Ratio of files used for testing the model.
     """
+    logger.info(f"Loading files from {os.path.join(root_path, genre)}")
     filenames = [f for f in os.listdir(os.path.join(root_path, genre))]
+    
     test_fpath = os.path.join(root_path, "test", "origin_midi")
+    make_sure_path_exists(test_fpath)
 
     idx = np.random.choice(len(filenames), int(test_ratio * len(filenames)), replace=False)
     for i in idx:
@@ -281,11 +299,11 @@ def train_test_split(root_path, genre, test_ratio=0.1):
             os.path.join(root_path, genre, filenames[i]),
             os.path.join(test_fpath, filenames[i]),
         )
-    logger.info(len(idx), f"files saved for test in {test_fpath}")
+    logger.info(f"\t{len(idx)} files saved for test in {test_fpath}")
 
 def main(argv):
-    train_test_split(...)
-    convert_and_clean_midis(...)
+    train_test_split(ROOT_PATH, GENRE_PATH)
+    convert_and_clean_midis(ROOT_PATH + "/test")
     
 
 if __name__ == "__main__":
