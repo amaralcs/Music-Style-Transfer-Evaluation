@@ -4,6 +4,7 @@ import shutil
 import json
 import errno
 import sys
+from functools import reduce
 
 import numpy as np
 from pypianoroll import Multitrack, Track, from_pretty_midi
@@ -18,7 +19,7 @@ logger.addHandler(logging.StreamHandler())
 
 ROOT_PATH = "test_preproc"
 GENRE_PATH = "Pop_Music_Midi"
-TEST_RATIO = 0.2
+TEST_RATIO = 0.1
 
 converter_path = os.path.join(ROOT_PATH, "test/converter")
 cleaner_path = os.path.join(ROOT_PATH, "test/cleaner")
@@ -286,7 +287,7 @@ def convert_and_clean_midis(
 
     # First step: load midis, create multitracks of each and save them
     midi_paths = get_midi_path(midi_fpath)
-    logging.info(f"Found {len(midi_paths)} midi files")
+    logger.info(f"Found {len(midi_paths)} midi files")
 
     track_metadata = {}
     midi_tracks = [
@@ -298,7 +299,7 @@ def convert_and_clean_midis(
 
     with open(os.path.join(root_path, "track_metadata.json"), "w") as outfile:
         json.dump(track_metadata, outfile)
-    logging.info(
+    logger.info(
         "[Done] {} files out of {} have been successfully converted".format(
             len(track_metadata), len(midi_paths)
         )
@@ -319,11 +320,10 @@ def convert_and_clean_midis(
 
     with open(os.path.join(root_path, "filtered_track_metadata.json"), "w") as outfile:
         json.dump(clean_metadata, outfile)
-    logging.info(
-        "[Done] {} files out of {} have been successfully cleaned".format(
-            count, len(track_metadata)
-        )
+    logger.info(
+        f"[Done] {count} files out of {len(track_metadata)} have been successfully cleaned"
     )
+    logger.info("-"*20)
 
 
 # Step 3:
@@ -344,7 +344,9 @@ def copy_clean_data(midi_fpath="origin_midi", filtered_midi_fpath="filtered_midi
     """
     make_sure_path_exists(os.path.join(ROOT_PATH, filtered_midi_fpath))
 
-    for filename in os.listdir(os.path.join(ROOT_PATH, midi_fpath)):
+    files_to_copy = os.listdir(os.path.join(ROOT_PATH, midi_fpath))
+    logger.info(f"Found {len(files_to_copy)} files to copy to {filtered_midi_fpath}")
+    for filename in files_to_copy:
         shutil.copy(
             os.path.join(
                 ROOT_PATH, midi_fpath, os.path.splitext(filename)[0] + ".midi"
@@ -353,6 +355,8 @@ def copy_clean_data(midi_fpath="origin_midi", filtered_midi_fpath="filtered_midi
                 ROOT_PATH, filtered_midi_fpath, os.path.splitext(filename)[0] + ".midi"
             ),
         )
+    logger.info("-"*20)
+
 
 
 def shape_last_bar(piano_roll, last_bar_mode="remove"):
@@ -402,18 +406,25 @@ def trim_midi_files(
         If set to true, only keep tracks that have 4 bars or keep a single phrase of tracks that do not
         have number of tracks a multiple of 4.
 
+    Returns
+    -------
+    List
+        A list with the trimmed files
     """
-    make_sure_path_exists(midi_outpath)
-    make_sure_path_exists(npy_outpath)
+    make_sure_path_exists(os.path.join(ROOT_PATH, midi_outpath))
+    make_sure_path_exists(os.path.join(ROOT_PATH, npy_outpath))
 
     filtered_midi_fpath = os.path.join(ROOT_PATH, filtered_midi_fpath)
     filtered_midis = os.listdir(filtered_midi_fpath)
 
+    trimmed_midis = []
+    logger.info(f"Trimming {len(filtered_midis)} midi files...")
     for midi_file in filtered_midis:
         # A dict to keep track of index of instruments in the tracks
         track_indices = {"Piano": [], "Drums": []}
 
         track_name = os.path.splitext(midi_file)[0]
+        logger.info(f"\ttrimming {track_name}")
         try:
             midi_obj = pretty_midi.PrettyMIDI(
                 os.path.join(filtered_midi_fpath, midi_file)
@@ -423,7 +434,7 @@ def trim_midi_files(
             multitrack.name = track_name
 
             # Find the indices of Piano and Drums
-            for idx, track in enumerate(multitrack.track):
+            for idx, track in enumerate(multitrack.tracks):
                 if track.is_drum:
                     track_indices["Drums"].append(idx)
                 else:
@@ -456,19 +467,55 @@ def trim_midi_files(
                     os.path.join(ROOT_PATH, midi_outpath, track_name + ".midi"),
                 )
                 np.save(
-                    os.path.join(ROOT_PATH, midi_outpath, track_name + ".npy"),
+                    os.path.join(ROOT_PATH, npy_outpath, track_name + ".npy"),
                     shaped_multitrack,
                 )
+                trimmed_midis.append(shaped_multitrack)
         except Exception as err:
-            logging.info(f"Error: {err}")
-            continue
+            logger.info(f"Error: {err}")
+            raise err
+    logger.info("[Done]")            
+    return trimmed_midis
 
+
+def save_phrases(trimmed_midis, outpath="phrases", remove_velocity=True):
+    """Saves the processed midis as a number of npy arrays to the target path.
+
+    Parameters
+    ----------
+    trimmed_midis : List[np.array]
+        List of midi files to save.
+    outpath : str, Optional
+        Location to save the phrases.
+    remove_velocity : Boolean, Optional
+        Whether to remove velocity information from the outputs.    
+    """
+    outpath = os.path.join(ROOT_PATH, outpath)
+    make_sure_path_exists(outpath)
+    concat_midis = np.concatenate(trimmed_midis, axis=0)
+    logger.info(f"Concatenated files have shape: {concat_midis.shape}")
+
+    # Convert to an array of booleans if we want to omit velocity
+    if remove_velocity:
+        concat_midis = concat_midis > 0
+    
+    logger.info(f"Saving phrases to {outpath}")
+    for idx, phrase in enumerate(concat_midis):
+        np.save(
+            os.path.join(outpath, f"phrase_{idx+1}"),
+            phrase
+        )
 
 def main(argv):
     train_test_split(ROOT_PATH, GENRE_PATH)
     convert_and_clean_midis(ROOT_PATH + "/test")
-    copy_clean_data()
-    trim_midi_files()
+    copy_clean_data("test/origin_midi", "test/filtered_midi")
+    trimmed_midis = trim_midi_files(
+        filtered_midi_fpath="test/filtered_midi",
+        midi_outpath="test/trimmed_midi",
+        npy_outpath="test/trimmed_npy"
+    )
+    save_phrases(trimmed_midis)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
