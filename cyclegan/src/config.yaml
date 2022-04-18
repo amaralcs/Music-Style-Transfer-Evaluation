@@ -1,0 +1,26 @@
+CycleGAN:
+    dataset_A_dir: processed_midi/phrases/pop
+    dataset_B_dir: processed_midi/phrases/jazz
+    epoch: 10
+    epoch_step: 10                   # number of epochs to decay learning rate
+    batch_size: 16
+    time_step: 64                    # number of time steps in piano roll
+    pitch_range: 84                   # pitch range of piano roll
+    ngf: 64                          # of generator filters in first conv layer
+    ndf: 64                          # of discriminator filters in first conv layer
+    input_nc : 1                     # of input image channels
+    output_nc : 1                    # of output image channels
+    lr : 0.0002
+    beta1: 0.5                       # momentum term of adam
+    which_direction: "AtoB"          # AtoB or BtoA
+    save_freq: 1                     # Frequency to save checkpoint
+    print_freq: 1000                 # Print debug information every n steps
+    continue_train: False            # if continue training, load the latest model: 1: true, 0: false)
+    # log_dir: './log'                 # logs are saved here)
+    L1_lambda: 10.0                  # weight on L1 term in objective)
+    gamma: 1.0                       # weight of extra discriminators)
+    max_size: 50                     # max size of image pool, 0 means do not use image pool)
+    sigma_c: 0.01                    # sigma of gaussian noise of classifiers)
+    sigma_d: 0.01                    # sigma of gaussian noise of discriminators)
+    model: "base"                    # three different models, base, partial, full)
+    phase: "train"

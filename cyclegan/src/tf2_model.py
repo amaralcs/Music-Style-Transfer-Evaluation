@@ -16,22 +16,65 @@ from tf2_utils import get_now_datetime, ImagePool, to_binary, load_npy_data, sav
 
 
 class CycleGAN(object):
-    def __init__(self, args):
+    def __init__(
+        self,
+        dataset_A_dir,
+        dataset_B_dir,
+        epoch,
+        epoch_step,
+        batch_size,
+        time_step,
+        pitch_range,
+        input_nc,
+        ngf,
+        ndf,
+        output_nc,
+        lr,
+        beta1,
+        which_direction,
+        save_freq,
+        print_freq,
+        continue_train,
+        L1_lambda,
+        gamma,
+        sigma_c,
+        sigma_d,
+        max_size,
+        model,
+        checkpoint_dir,
+        test_dir,
+        sample_dir,
+        phase
 
-        self.batch_size = args.batch_size
-        self.time_step = args.time_step  # number of time steps
-        self.pitch_range = args.pitch_range  # number of pitches
-        self.input_c_dim = args.input_nc  # number of input image channels
-        self.output_c_dim = args.output_nc  # number of output image channels
-        self.lr = args.lr
-        self.L1_lambda = args.L1_lambda
-        self.gamma = args.gamma
-        self.sigma_d = args.sigma_d
-        self.dataset_A_dir = args.dataset_A_dir
-        self.dataset_B_dir = args.dataset_B_dir
-        self.sample_dir = args.sample_dir
+    ):
+        self.dataset_A_dir = dataset_A_dir
+        self.dataset_B_dir = dataset_B_dir
+        self.epoch = epoch
+        self.epoch_step = epoch_step
+        self.batch_size = batch_size
+        self.time_step = time_step
+        self.pitch_range = pitch_range
+        self.input_c_dim = input_nc
+        self.output_c_dim = output_nc
+        self.ngf = ngf
+        self.ndf = ndf
+        self.lr = lr
+        self.beta1 = beta1
+        self.which_direction = which_direction
+        self.save_freq = save_freq
+        self.print_freq = print_freq
+        self.continue_train = continue_train
+        self.L1_lambda = L1_lambda
+        self.gamma = gamma
+        self.sigma_c = sigma_c
+        self.sigma_d = sigma_d
+        self.max_size = max_size
+        self.checkpoint_dir = checkpoint_dir
+        self.test_dir = test_dir
+        self.sample_dir = sample_dir
+        self.phase = phase
 
-        self.model = args.model
+        self.model = model
         self.discriminator = build_discriminator
         self.generator = build_generator
         self.criterionGAN = mae_criterion
@@ -49,24 +92,24 @@ class CycleGAN(object):
         )
         self.options = OPTIONS._make(
             (
-                args.batch_size,
-                args.time_step,
-                args.pitch_range,
-                args.input_nc,
-                args.output_nc,
-                args.ngf,
-                args.ndf,
-                args.phase == "train",
+                self.batch_size,
+                self.time_step,
+                self.pitch_range,
+                self.input_c_dim,
+                self.output_c_dim,
+                self.ngf,
+                self.ndf,
+                self.phase == "train",
             )
         )
 
         self.now_datetime = get_now_datetime()
-        self.pool = ImagePool(args.max_size)
+        self.pool = ImagePool(self.max_size)
 
-        self._build_model(args)
+        self._build_model()
         print("initialize model...")
 
-    def _build_model(self, args):
+    def _build_model(self):
 
         # Generator
         self.generator_A2B = self.generator(self.options, name="Generator_A2B")
@@ -85,25 +128,25 @@ class CycleGAN(object):
             )
 
         # Discriminator and Generator Optimizer
-        self.DA_optimizer = Adam(self.lr, beta_1=args.beta1)
-        self.DB_optimizer = Adam(self.lr, beta_1=args.beta1)
-        self.GA2B_optimizer = Adam(self.lr, beta_1=args.beta1)
-        self.GB2A_optimizer = Adam(self.lr, beta_1=args.beta1)
+        self.DA_optimizer = Adam(self.lr, beta_1=self.beta1)
+        self.DB_optimizer = Adam(self.lr, beta_1=self.beta1)
+        self.GA2B_optimizer = Adam(self.lr, beta_1=self.beta1)
+        self.GB2A_optimizer = Adam(self.lr, beta_1=self.beta1)
 
         if self.model != "base":
-            self.DA_all_optimizer = Adam(self.lr, beta_1=args.beta1)
-            self.DB_all_optimizer = Adam(self.lr, beta_1=args.beta1)
+            self.DA_all_optimizer = Adam(self.lr, beta_1=self.beta1)
+            self.DB_all_optimizer = Adam(self.lr, beta_1=self.beta1)
 
         # Checkpoints
         model_name = "cyclegan.model"
         model_dir = "{}2{}_{}_{}_{}".format(
-            os.path.split(self.dataset_A_dir),
-            os.path.split(self.dataset_B_dir),
+            os.path.split(self.dataset_A_dir)[-1],
+            os.path.split(self.dataset_B_dir)[-1],
             self.now_datetime,
             self.model,
             self.sigma_d,
         )
-        self.checkpoint_dir = os.path.join(args.checkpoint_dir, model_dir, model_name)
+        self.checkpoint_dir = os.path.join(self.checkpoint_dir, model_dir, model_name)
         if not os.path.exists(self.checkpoint_dir):
             os.makedirs(self.checkpoint_dir)
 
@@ -142,7 +185,7 @@ class CycleGAN(object):
         #     self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint)
         #     print('Latest checkpoint restored!!')
 
-    def train(self, args):
+    def train(self):
 
         # Data from domain A and B, and mixed dataset for partial and full models.
         # TODO: improve file paths for inputs
@@ -161,7 +204,7 @@ class CycleGAN(object):
         if self.model == "full":
             data_mixed = glob("./data/cycleGAN/prepared/JCP_mixed/*.*")
 
-        if args.continue_train:
+        if self.continue_train:
             if self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint):
                 print(" [*] Load checkpoint succeeded!")
             else:
@@ -170,7 +213,7 @@ class CycleGAN(object):
         counter = 1
         start_time = time.time()
         print("Beginning training...")
-        for epoch in range(args.epoch):
+        for epoch in range(self.epoch):
             # Shuffle training data
             np.random.shuffle(dataA)
             np.random.shuffle(dataB)
@@ -183,8 +226,8 @@ class CycleGAN(object):
             # learning rate starts to decay when reaching the threshold
             self.lr = (
                 self.lr
-                if epoch < args.epoch_step
-                else self.lr * (args.epoch - epoch) / (args.epoch - args.epoch_step)
+                if epoch < self.epoch_step
+                else self.lr * (self.epoch - epoch) / (self.epoch - self.epoch_step)
             )
 
             for idx in range(batch_idxs):
@@ -334,7 +377,7 @@ class CycleGAN(object):
                     )
 
                     print(
-                        "================================================================="
+                        "==============================================================================="
                     )
                     print(
                         (
@@ -546,7 +589,7 @@ class CycleGAN(object):
                 counter += 1
 
                 # generate samples during training to track the learning process
-                if np.mod(counter, args.print_freq) == 1:
+                if counter % self.print_freq == 1:
                     sample_dir = os.path.join(
                         self.sample_dir,
                         "{}2{}_{}_{}_{}".format(
@@ -574,7 +617,7 @@ class CycleGAN(object):
                         samples=samples, sample_dir=sample_dir, epoch=epoch, idx=idx
                     )
 
-                if np.mod(counter, args.save_freq) == 1:
+                if counter % self.save_freq == 1:
                     self.checkpoint_manager.save(counter)
         print(f"Done training.")
 
@@ -612,11 +655,11 @@ class CycleGAN(object):
             "./{}/B2A/{:02d}_{:04d}_cycle.mid".format(sample_dir, epoch, idx),
         )
 
-    def test(self, args):
+    def test(self):
 
-        if args.which_direction == "AtoB":
+        if self.which_direction == "AtoB":
             sample_files = glob("./datasets/{}/test/*.*".format(self.dataset_A_dir))
-        elif args.which_direction == "BtoA":
+        elif self.which_direction == "BtoA":
             sample_files = glob("./datasets/{}/test/*.*".format(self.dataset_B_dir))
         else:
             raise Exception("--which_direction must be AtoB or BtoA")
@@ -630,28 +673,28 @@ class CycleGAN(object):
             print(" [!] Load checkpoint failed...")
 
         test_dir_mid = os.path.join(
-            args.test_dir,
+            self.test_dir,
             "{}2{}_{}_{}_{}/{}/mid".format(
                 self.dataset_A_dir,
                 self.dataset_B_dir,
                 self.now_datetime,
                 self.model,
                 self.sigma_d,
-                args.which_direction,
+                self.which_direction,
             ),
         )
         if not os.path.exists(test_dir_mid):
             os.makedirs(test_dir_mid)
 
         test_dir_npy = os.path.join(
-            args.test_dir,
+            self.test_dir,
             "{}2{}_{}_{}_{}/{}/npy".format(
                 self.dataset_A_dir,
                 self.dataset_B_dir,
                 self.now_datetime,
                 self.model,
                 self.sigma_d,
-                args.which_direction,
+                self.which_direction,
             ),
         )
         if not os.path.exists(test_dir_npy):
@@ -671,7 +714,7 @@ class CycleGAN(object):
             )
             midi_path_cycle = os.path.join(test_dir_mid, "{}_cycle.mid".format(idx + 1))
 
-            if args.which_direction == "AtoB":
+            if self.which_direction == "AtoB":
 
                 transfer = self.generator_A2B(origin, training=False)
                 cycle = self.generator_B2A(transfer, training=False)
@@ -706,19 +749,19 @@ class CycleGAN(object):
             )
             np.save(os.path.join(npy_path_cycle, "{}_cycle.npy".format(idx + 1)), cycle)
 
-    def test_famous(self, args):
+    # def test_famous(self, args):
 
-        song = np.load("./datasets/famous_songs/P2C/merged_npy/YMCA.npy")
+    #     song = np.load("./datasets/famous_songs/P2C/merged_npy/YMCA.npy")
 
-        if self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint):
-            print(" [*] Load checkpoint succeeded!")
-        else:
-            print(" [!] Load checkpoint failed...")
+    #     if self.checkpoint.restore(self.checkpoint_manager.latest_checkpoint):
+    #         print(" [*] Load checkpoint succeeded!")
+    #     else:
+    #         print(" [!] Load checkpoint failed...")
 
-        if args.which_direction == "AtoB":
-            transfer = self.generator_A2B(song, training=False)
-        else:
-            transfer = self.generator_B2A(song, training=False)
+    #     if args.which_direction == "AtoB":
+    #         transfer = self.generator_A2B(song, training=False)
+    #     else:
+    #         transfer = self.generator_B2A(song, training=False)
 
-        save_midis(transfer, "./datasets/famous_songs/P2C/transfer/YMCA.mid", 127)
-        np.save("./datasets/famous_songs/P2C/transfer/YMCA.npy", transfer)
+    #     save_midis(transfer, "./datasets/famous_songs/P2C/transfer/YMCA.mid", 127)
+    #     np.save("./datasets/famous_songs/P2C/transfer/YMCA.npy", transfer)
