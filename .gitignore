@@ -8,3 +8,6 @@ midi-vae/models/*
 midi-vae/pickles/*
 chordgan/converted/*
 cyclegan/new_data/
+cyclegan/processed_midi/
+chordgan/train_logs/
+chordgan/trained_models/

@@ -51,7 +51,7 @@ def parse_args(argv):
     """
     args = ArgumentParser()
     args.add_argument(
-        "root-path",
+        "root_path",
         default="processed_midi",
         type=str,
         help="Path to where the midis are stored.",
@@ -76,7 +76,7 @@ def parse_args(argv):
     )
     args.add_argument(
         "--clip-low",
-        default=28,
+        default=24,
         type=int,
         help="Lower bound for notes to use (0 - 128 in a midi file)",
     )
@@ -438,7 +438,7 @@ def save_phrases(trimmed_midis, dataset, outpath, genre, remove_velocity=True):
         Whether to remove velocity information from the outputs.
     """
 
-    outpath = os.path.join(outpath, dataset)
+    outpath = os.path.join(outpath, genre, dataset)
     make_sure_path_exists(outpath)
 
     concat_midis = np.concatenate(trimmed_midis, axis=0)
