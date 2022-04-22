@@ -212,6 +212,7 @@ class CycleGAN(object):
 
         counter = 1
         start_time = time.time()
+
         print("Beginning training...")
         for epoch in range(self.epoch):
             # Shuffle training data
@@ -586,15 +587,15 @@ class CycleGAN(object):
                         )
                     )
 
-                counter += 1
+                counter = 1
 
                 # generate samples during training to track the learning process
                 if counter % self.print_freq == 1:
                     sample_dir = os.path.join(
                         self.sample_dir,
                         "{}2{}_{}_{}_{}".format(
-                            self.dataset_A_dir,
-                            self.dataset_B_dir,
+                            os.path.split(self.dataset_A_dir)[-1],
+                            os.path.split(self.dataset_B_dir)[-1],
                             self.now_datetime,
                             self.model,
                             self.sigma_d,
