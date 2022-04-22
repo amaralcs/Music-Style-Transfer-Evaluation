@@ -23,18 +23,6 @@ def parse_args(argv):
     parser.add_argument("--config_path", default="config.yaml")
     parser.add_argument("--phase", dest="phase", default="train", help="train, test")
     parser.add_argument(
-        "--checkpoint_dir",
-        dest="checkpoint_dir",
-        default="./checkpoint",
-        help="models are saved here",
-    )
-    parser.add_argument(
-        "--sample_dir", dest="sample_dir", default="./samples", help="sample are saved here"
-    )
-    parser.add_argument(
-        "--test_dir", dest="test_dir", default="./test", help="test sample are saved here"
-    )
-    parser.add_argument(
         "--log_dir", dest="log_dir", default="./log", help="logs are saved here"
     )
     parser.add_argument(
@@ -61,16 +49,7 @@ def main(argv):
     type = args.type
     phase = args.phase
     config_path = args.config_path
-    directories = [
-        args.checkpoint_dir,
-        args.sample_dir,
-        args.test_dir
-    ]
-    setup_directories(directories)
     model_config = load_config(config_path)
-    model_config["checkpoint_dir"] = args.checkpoint_dir
-    model_config["sample_dir"] = args.sample_dir
-    model_config["test_dir"] = args.test_dir
 
     if type == "cyclegan":
         model = CycleGAN(**model_config)
