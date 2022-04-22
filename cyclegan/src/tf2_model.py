@@ -658,12 +658,12 @@ class CycleGAN(object):
 
     def test(self):
 
-        if self.which_direction == "AtoB":
-            sample_files = glob("./datasets/{}/test/*.*".format(self.dataset_A_dir))
-        elif self.which_direction == "BtoA":
-            sample_files = glob("./datasets/{}/test/*.*".format(self.dataset_B_dir))
-        else:
-            raise Exception("--which_direction must be AtoB or BtoA")
+        test_fpath = self.dataset_A_dir if self.which_direction == "AtoB" else self.dataset_B_dir
+        sample_files = glob("{}/test/*.*".format(test_fpath))
+        assert len(sample_files) > 1, (
+            f"There was a problem loading test files from {test_fpath}/test/"
+        )
+
         sample_files.sort(
             key=lambda x: int(os.path.splitext(os.path.basename(x))[0].split("_")[-1])
         )
