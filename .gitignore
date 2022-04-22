@@ -9,5 +9,7 @@ midi-vae/pickles/*
 chordgan/converted/*
 cyclegan/new_data/
 cyclegan/processed_midi/
+cyclegan/samples/
+cyclegan/checkpoint/
 chordgan/train_logs/
 chordgan/trained_models/

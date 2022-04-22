@@ -676,8 +676,8 @@ class CycleGAN(object):
         test_dir_mid = os.path.join(
             self.test_dir,
             "{}2{}_{}_{}_{}/{}/mid".format(
-                self.dataset_A_dir,
-                self.dataset_B_dir,
+                os.path.split(self.dataset_A_dir)[-1],
+                os.path.split(self.dataset_B_dir)[-1],
                 self.now_datetime,
                 self.model,
                 self.sigma_d,
@@ -690,8 +690,8 @@ class CycleGAN(object):
         test_dir_npy = os.path.join(
             self.test_dir,
             "{}2{}_{}_{}_{}/{}/npy".format(
-                self.dataset_A_dir,
-                self.dataset_B_dir,
+                os.path.split(self.dataset_A_dir)[-1],
+                os.path.split(self.dataset_B_dir)[-1],
                 self.now_datetime,
                 self.model,
                 self.sigma_d,
