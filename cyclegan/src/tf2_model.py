@@ -1,5 +1,6 @@
 import os
 import time
+import json
 from glob import glob
 import numpy as np
 from collections import namedtuple
@@ -78,6 +79,23 @@ class CycleGAN(object):
         self.discriminator = build_discriminator
         self.generator = build_generator
         self.criterionGAN = mae_criterion
+        self.history = {
+            "generator" : {
+                "cycle_loss": [], # lambda * (mean(|A - A~|) + mean(|B - B~|)) (cycle consistency loss)
+                "g_A2B_loss": [], # MSE(D_B(x^_B) - 1) + cycle_loss
+                "g_B2A_loss": [], # MSE(D_A(x^_A) - 1) + cycle_loss
+                "g_loss": [], # g_A2B_loss + g_B2A_loss - cycle_loss
+            },
+            "discriminator": {
+                "d_A_loss_fake": [], # MSE(D_A(x_A) - 1)
+                "d_A_loss_real": [], # MSE(D_A(x^_A))
+                "d_A_loss": [], # (d_A_loss_real + d_A_loss_fake) / 2
+                "d_B_loss_fake": [], # MSE(D_B(x_B) - 1)
+                "d_B_loss_real": [], # MSE(D_B(x^_B))
+                "d_B_loss": [], # (d_B_loss_real + d_B_loss_fake) / 2
+                "d_loss": [] # d_A_loss + d_B_loss
+            }
+        }
 
         OPTIONS = namedtuple(
             "OPTIONS",
@@ -107,6 +125,8 @@ class CycleGAN(object):
         self.pool = ImagePool(self.max_size)
 
         self._build_model()
+        self.history_dir = os.path.join(os.path.split(self.checkpoint_dir)[0], "history")
+        os.makedirs(self.history_dir, exist_ok=True)
         print("initialize model...")
 
     def _build_model(self):
@@ -587,6 +607,19 @@ class CycleGAN(object):
                         )
                     )
 
+                self.history["generator"]["cycle_loss"].append(str(cycle_loss.numpy()))
+                self.history["generator"]["g_A2B_loss"].append(str(g_A2B_loss.numpy()))
+                self.history["generator"]["g_B2A_loss"].append(str(g_B2A_loss.numpy()))
+                self.history["generator"]["g_loss"].append(str(g_loss.numpy()))
+
+                self.history["discriminator"]["d_A_loss_fake"].append(str(d_A_loss_fake.numpy()))
+                self.history["discriminator"]["d_A_loss_real"].append(str(d_A_loss_real.numpy()))
+                self.history["discriminator"]["d_A_loss"].append(str(d_A_loss.numpy()))
+                self.history["discriminator"]["d_B_loss_fake"].append(str(d_B_loss_fake.numpy()))
+                self.history["discriminator"]["d_B_loss_real"].append(str(d_B_loss_real.numpy()))
+                self.history["discriminator"]["d_B_loss"].append(str(d_B_loss.numpy()))
+                self.history["discriminator"]["d_loss"].append(str(d_loss.numpy()))
+
                 counter = 1
 
                 # generate samples during training to track the learning process
@@ -621,6 +654,10 @@ class CycleGAN(object):
                 if counter % self.save_freq == 1:
                     self.checkpoint_manager.save(counter)
         print(f"Done training.")
+
+        with open(os.path.join(self.history_dir, "losses.json"), "w") as f:
+            json.dump(self.history, f)
+        
 
     def sample_model(self, samples, sample_dir, epoch, idx):
 
