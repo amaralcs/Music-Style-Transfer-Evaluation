@@ -398,7 +398,7 @@ class CycleGAN(object):
                     )
 
                     print(
-                        "==============================================================================="
+                        "======================================================================================="
                     )
                     print(
                         (
@@ -620,8 +620,6 @@ class CycleGAN(object):
                 self.history["discriminator"]["d_B_loss"].append(str(d_B_loss.numpy()))
                 self.history["discriminator"]["d_loss"].append(str(d_loss.numpy()))
 
-                counter = 1
-
                 # generate samples during training to track the learning process
                 if counter % self.print_freq == 1:
                     sample_dir = os.path.join(
@@ -653,6 +651,7 @@ class CycleGAN(object):
 
                 if counter % self.save_freq == 1:
                     self.checkpoint_manager.save(counter)
+                counter +=1
         print(f"Done training.")
 
         with open(os.path.join(self.history_dir, "losses.json"), "w") as f:
