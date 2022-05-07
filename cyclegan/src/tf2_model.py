@@ -734,8 +734,21 @@ class CycleGAN(object):
                 self.which_direction,
             ),
         )
+        # Create directories
+
         if not os.path.exists(test_dir_npy):
             os.makedirs(test_dir_npy)
+            
+        npy_path_origin = os.path.join(test_dir_npy, "origin")
+        npy_path_transfer = os.path.join(test_dir_npy, "transfer")
+        npy_path_cycle = os.path.join(test_dir_npy, "cycle")
+
+        if not os.path.exists(npy_path_origin):
+            os.makedirs(npy_path_origin)
+        if not os.path.exists(npy_path_transfer):
+            os.makedirs(npy_path_transfer)
+        if not os.path.exists(npy_path_cycle):
+            os.makedirs(npy_path_cycle)
 
         for idx in range(len(sample_files)):
             print("Processing midi: ", sample_files[idx])
@@ -764,18 +777,6 @@ class CycleGAN(object):
             save_midis(origin, midi_path_origin)
             save_midis(transfer, midi_path_transfer)
             save_midis(cycle, midi_path_cycle)
-
-            # save npy files
-            npy_path_origin = os.path.join(test_dir_npy, "origin")
-            npy_path_transfer = os.path.join(test_dir_npy, "transfer")
-            npy_path_cycle = os.path.join(test_dir_npy, "cycle")
-
-            if not os.path.exists(npy_path_origin):
-                os.makedirs(npy_path_origin)
-            if not os.path.exists(npy_path_transfer):
-                os.makedirs(npy_path_transfer)
-            if not os.path.exists(npy_path_cycle):
-                os.makedirs(npy_path_cycle)
 
             np.save(
                 os.path.join(npy_path_origin, "{}_origin.npy".format(idx + 1)), origin
