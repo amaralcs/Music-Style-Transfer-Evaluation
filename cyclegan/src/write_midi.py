@@ -8,11 +8,15 @@ def set_piano_roll_to_instrument(piano_roll, instrument, velocity=100, tempo=120
     threshold = 60.0 / tempo / 4
     phrase_end_time = 60.0 / tempo * 4 * piano_roll.shape[0]
     # Create piano_roll_search that captures note onsets and offsets
-    piano_roll = piano_roll.reshape((piano_roll.shape[0] * piano_roll.shape[1], piano_roll.shape[2]))
+    piano_roll = piano_roll.reshape((piano_roll.shape[0] * piano_roll.shape[1], piano_roll.shape[2])) # remove batch axis (from (1, 64, 128) -> (64, 128)))
     piano_roll_diff = np.concatenate((np.zeros((1, 128), dtype=int), piano_roll, np.zeros((1, 128), dtype=int)))
-    piano_roll_search = np.diff(piano_roll_diff.astype(int), axis=0)
-    # Iterate through all possible(128) pitches
 
+    # np.diff calculates the diff between element x+1 and x for all x in an array
+    piano_roll_search = np.diff(piano_roll_diff.round(), axis=0)
+
+    # Next we'll iterate through all columns in the piano roll (remember, the piano roll is transposed)
+    # So for each column (i.e. pitch) we find the start times where the notes start being played
+    # and subtract these from the end times to calculate the duration of each note
     for note_num in range(128):
         # Search for notes
         start_idx = (piano_roll_search[:, note_num] > 0).nonzero()
@@ -30,17 +34,21 @@ def set_piano_roll_to_instrument(piano_roll, instrument, velocity=100, tempo=120
         temp_start_time = [i for i in start_time]
         temp_end_time = [i for i in end_time]
 
+        # for onset in all_onsets
         for i in range(len(start_time)):
             # print(start_time)
+            # if onset is in temp_onset_times and is not the last onset
             if start_time[i] in temp_start_time and i != len(start_time) - 1:
                 # print('i and start_time:', i, start_time[i])
                 t = []
-                current_idx = temp_start_time.index(start_time[i])
-                for j in range(current_idx + 1, len(temp_start_time)):
+                current_idx = temp_start_time.index(start_time[i]) # get the index of this onset
+                for j in range(current_idx + 1, len(temp_start_time)): # Then for the remaining elements of temp_onset_times
                     # print(j, temp_start_time[j])
+                    # check that the next start time is smaller than current onset + a threshold
+                    # and that the offset of the next note is <= than current onset + a threshold
                     if temp_start_time[j] < start_time[i] + threshold and temp_end_time[j] <= start_time[i] + threshold:
                         # print('popped start time:', temp_start_time[j])
-                        t.append(j)
+                        t.append(j) # add it to a list of elements to remove
                         # print('popped temp_start_time:', t)
                 for _ in t:
                     temp_start_time.pop(t[0])
@@ -61,6 +69,7 @@ def set_piano_roll_to_instrument(piano_roll, instrument, velocity=100, tempo=120
             d = len(start_time) - len(end_time)
             start_time = start_time[:-d]
         # Iterate through all the searched notes
+        # creating a note object for each one, with pitch, start time, end time and the given velocity
         for idx in range(len(start_time)):
             if duration[idx] >= threshold:
                 # Create an Note object with corresponding note number, start time and end time
@@ -68,6 +77,7 @@ def set_piano_roll_to_instrument(piano_roll, instrument, velocity=100, tempo=120
                 # Add the note to the Instrument object
                 instrument.notes.append(note)
             else:
+                # Check that we won't go out of bounds (i.e. note duration isn't longer than the song)
                 if start_time[idx] + threshold <= phrase_end_time:
                     # Create an Note object with corresponding note number, start time and end time
                     note = pretty_midi.Note(velocity=velocity, pitch=note_num, start=start_time[idx],
