@@ -94,7 +94,8 @@ class CycleGAN(object):
                 "d_B_loss_real": [], # MSE(D_B(x^_B))
                 "d_B_loss": [], # (d_B_loss_real + d_B_loss_fake) / 2
                 "d_loss": [] # d_A_loss + d_B_loss
-            }
+            },
+            "learning_rate": []
         }
 
         OPTIONS = namedtuple(
@@ -234,7 +235,7 @@ class CycleGAN(object):
         start_time = time.time()
 
         print("Beginning training...")
-        for epoch in range(self.epoch):
+        for epoch in range(1, self.epoch+1):
             # Shuffle training data
             np.random.shuffle(dataA)
             np.random.shuffle(dataB)
@@ -250,6 +251,7 @@ class CycleGAN(object):
                 if epoch < self.epoch_step
                 else self.lr * (self.epoch - epoch) / (self.epoch - self.epoch_step)
             )
+            self.history["learning_rate"].append(self.lr)
 
             for idx in range(batch_idxs):
                 # To feed real_data
@@ -402,12 +404,13 @@ class CycleGAN(object):
                     )
                     print(
                         (
-                            "Epoch: [%2d] [%4d/%4d] time: %4.4f D_loss: %6.2f, G_loss: %6.2f, cycle_loss: %6.2f"
+                            "Epoch: [%2d] [%4d/%4d] time: %4.4f, learning_rate: %.5f, D_loss: %6.2f, G_loss: %6.2f, cycle_loss: %6.2f"
                             % (
                                 epoch,
                                 idx,
                                 batch_idxs,
                                 time.time() - start_time,
+                                self.lr,
                                 d_loss,
                                 g_loss,
                                 cycle_loss,
