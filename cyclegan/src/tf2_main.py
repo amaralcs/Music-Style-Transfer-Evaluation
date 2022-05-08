@@ -2,6 +2,7 @@ import sys
 import argparse
 from yaml import safe_load, YAMLError
 import os
+import shutil
 
 from tf2_model import CycleGAN
 from tf2_classifier import Classifier
@@ -55,6 +56,8 @@ def main(argv):
         model = CycleGAN(**model_config)
         model.train() if phase == "train" else model.test()
 
+        checkpoint_path = os.path.split(model.checkpoint_dir)[0]
+        shutil.copy(config_path, checkpoint_path)
     # if type == "classifier":
     #     classifier = Classifier()
     #     classifier.train() if phase == "train" else classifier.test()
