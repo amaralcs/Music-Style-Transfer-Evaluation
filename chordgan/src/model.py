@@ -12,6 +12,7 @@ from tensorflow.keras.optimizers import Adam
 import reverse_pianoroll
 import convert
 
+
 def xavier_init(size, dtype=None):
     input_dim = size[0]
     xavier_stddev = 1.0 / tf.sqrt(input_dim / 2)
@@ -21,9 +22,9 @@ def xavier_init(size, dtype=None):
 class ChordGAN(Model):
     def __init__(
         self,
-        note_range = 78,
-        chroma_dims = 12,
-        n_timesteps = 4,
+        note_range=84,
+        chroma_dims=12,
+        n_timesteps=4,
         generator_units=128,
         discriminator_units=512,
         lambda_=100,
@@ -60,12 +61,14 @@ class ChordGAN(Model):
         self.lambda_ = lambda_
         self.loss_func = loss_func
 
-        self.X_dim =  2 * self.note_range * self.n_timesteps  # This is the size of the visible layer.
-        self.Z_dim = self.chroma_dims * self.n_timesteps
+        self.X_dim = (
+            self.note_range
+        )  # This is the size of the visible layer.
+        self.Z_dim = self.chroma_dims
 
         self.generator = self._build_generator(self.X_dim, self.Z_dim)
         self.discriminator = self._build_discriminator(self.X_dim, self.Z_dim)
-        
+
         # used in the losses
         self.binary_cross_entropy = BinaryCrossentropy(from_logits=True)
 
@@ -241,19 +244,22 @@ class ChordGAN(Model):
         converted_song = self.generator(chroma).numpy()
 
         S = converted_song.reshape(
-            int(reduce(lambda x, y: x * y, converted_song.shape) / 2 / self.note_range),
-            2 * self.note_range
+            int(
+                reduce(lambda x, y: x * y, converted_song.shape) / (2 * self.note_range)
+            ),
+            2 * self.note_range,
         )
-        S_thresh = (S>= 0.5).T
+        S_thresh = (S >= 0.5).T
         # C = chroma.reshape(chroma.shape[0] * self.n_timesteps / self.chroma_dims)
-        output = reverse_pianoroll.piano_roll_to_pretty_midi(convert.back(S_thresh), fs=16)
+        output = reverse_pianoroll.piano_roll_to_pretty_midi(
+            convert.back(S_thresh), fs=16
+        )
         return output
-
 
     def convert_dataset(self, dataset):
         """
         TODO: Figure a way of knowing the name of the song being converted
-     
+
         Parameters
         ----------
         input_ds
@@ -267,4 +273,3 @@ class ChordGAN(Model):
     def summary(self):
         self.generator.summary()
         self.discriminator.summary()
-

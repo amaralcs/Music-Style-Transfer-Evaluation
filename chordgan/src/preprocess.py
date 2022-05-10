@@ -24,8 +24,8 @@ def get_chroma(song, chroma_dims=12, n_notes=84):
         Piano roll of a given song
     chroma_dims : int, Optional
         How many chroma dimensions to split.
-    n_notes : 78
-        The range of nots to use.
+    n_notes : int, Optional
+        The number of notes in the range of the clipped midi.
 
     Returns
     -------
