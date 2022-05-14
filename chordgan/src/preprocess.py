@@ -149,6 +149,7 @@ def get_songs(path, n_bars=4, fs=16):
             chromas.append(chroma)
             fnames.append(f)
         except Exception as e:
+            logger.warning(f"Error loading {f}")
             raise e
     return songs, fnames, chromas
 
