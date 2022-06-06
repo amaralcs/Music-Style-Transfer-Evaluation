@@ -227,6 +227,8 @@ def load_data(fpath, genre, note_range=(24, 102), shuffle=True):
         Path to where the data is stored.
     genre : str
         Genre of dataset to be loaded.
+    note_range: tuple(int, int)
+        The indices of the lowest and highest notes to keep.
     shuffle : bool
         Whether to shuffle the resulting dataset. Setting it to False is useful when
         processing a dataset for genre transfer as the songs will retain their order
