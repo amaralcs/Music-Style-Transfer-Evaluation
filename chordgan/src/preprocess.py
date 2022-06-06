@@ -12,7 +12,7 @@ logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler())
 
 
-def get_chroma(song, chroma_dims=12, n_notes=84):
+def get_chroma(song, chroma_dims=12, n_notes=78):
     """Creates the chromagram of a given song.
 
     Implementation taken from:

@@ -1,8 +1,13 @@
+""" 
+    The functions in this script are not used with the refactored version, but they are
+    left here for legacy compatibility when using it with ChordGAN.ipynb and ChordGAN_v2.ipynb
+"""
+
+
 import sys
 import numpy as np
 import pretty_midi
 import matplotlib.pyplot as plt
-
 
 def forward(t):
     #prettymidi piano roll to ganmidi piano roll
@@ -39,12 +44,12 @@ def forward(t):
     return res
 
 
-def back(res):
+def back(res, range_=84):
     #ganmidi piano roll to prettymidi piano roll
     #res = np.transpose(res)
-    inputnotes = res[:78, :np.shape(res)[1]]
-    inputrhythm = res[78:, :np.shape(res)[1]]
-    midiback = np.zeros((78, 2*np.shape(inputnotes)[1]))
+    inputnotes = res[:range_, :np.shape(res)[1]]
+    inputrhythm = res[range_:, :np.shape(res)[1]]
+    midiback = np.zeros((range_, 2*np.shape(inputnotes)[1]))
     for i in np.arange(np.shape(inputnotes)[0]):
         for j in np.arange(np.shape(inputnotes)[1]):
             midiback[i, 2*j] = inputnotes[i, j]
@@ -62,7 +67,7 @@ def back(res):
                 midiback[i, j] = 100
                 
     tempblock = np.zeros((24, np.shape(midiback)[1]))
-    tempblock2 = np.zeros((26, np.shape(midiback)[1]))
+    tempblock2 = np.zeros((20, np.shape(midiback)[1]))
 
     tomidi = np.concatenate((tempblock, midiback))
     fina = np.concatenate((tomidi, tempblock2))
