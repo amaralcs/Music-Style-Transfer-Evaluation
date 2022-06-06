@@ -10,6 +10,7 @@ import requests
 import os
 import subprocess
 from glob import glob
+import re
 
 
 def get_genre_page(genre, base_path="https://www.midiworld.com/"):
@@ -28,7 +29,9 @@ def download_files(file_list, outpath):
     """Iterates through all items in the file list and get the URL to download"""
     cur_files = [os.path.split(fname)[1] for fname in glob(outpath + "/*.mid")]
     for item in file_list.find_all("li"):
-        name = item.text.split(" - ")[0].strip().replace(" ", "_").lower() + ".mid"
+        name = item.text.split(" - ")[0].strip().replace(" ", "_").lower() 
+        name = re.sub(r"[!-/:-@[-`{-~.,]", "_", name)
+        name = re.sub(r"_{2,}", "_", name) + ".mid"
         url = item.find("a").get("href")
         if name in cur_files:
             print(f"\tskipping {name}")
