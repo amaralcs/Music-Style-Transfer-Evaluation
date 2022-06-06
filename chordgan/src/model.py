@@ -1,5 +1,3 @@
-from functools import reduce
-
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.models import Model
@@ -8,9 +6,9 @@ from tensorflow.keras.activations import sigmoid
 from tensorflow.keras.losses import BinaryCrossentropy, MeanSquaredError
 from tensorflow.keras.optimizers import Adam
 
+from src.utils import restore_pianoroll
+from reverse_pianoroll import piano_roll_to_pretty_midi
 
-import reverse_pianoroll
-import convert
 
 
 def xavier_init(size, dtype=None):
@@ -22,7 +20,7 @@ def xavier_init(size, dtype=None):
 class ChordGAN(Model):
     def __init__(
         self,
-        note_range=84,
+        note_range=78,
         chroma_dims=12,
         n_timesteps=4,
         generator_units=128,
@@ -232,43 +230,26 @@ class ChordGAN(Model):
 
         return {"d_loss": d_loss, "g_loss": g_loss}
 
-    def call(self, chroma):
+    def call(self, chroma, low_note=24, high_note=102):
         """Converts a song given its chroma. The chroma needs to have been correctly reshaped
         as per the preprocessing function.
 
         Parameters
         ----------
-        input_ds
-            Processed dataset with song and chromas
+        chroma : np.array
+            Chromagram of the song to convert.
+        low_note : int
+            Index of lowest note to keep.
+        high_note : int
+            Index of highest note to keep.
         """
-        converted_song = self.generator(chroma).numpy()
+        # The generator returns a tensor of shape
+        converted_song = self.generator(chroma).numpy()[0]
 
-        S = converted_song.reshape(
-            int(
-                reduce(lambda x, y: x * y, converted_song.shape) / (2 * self.note_range)
-            ),
-            2 * self.note_range,
-        )
-        S_thresh = (S >= 0.5).T
-        # C = chroma.reshape(chroma.shape[0] * self.n_timesteps / self.chroma_dims)
-        output = reverse_pianoroll.piano_roll_to_pretty_midi(
-            convert.back(S_thresh), fs=16
-        )
-        return output
+        piano_roll = restore_pianoroll(converted_song.T, low_note, high_note)
+        piano_roll_thresh = (piano_roll >= 0.5) * 127 # set all non-zero velocities to 127
 
-    def convert_dataset(self, dataset):
-        """
-        TODO: Figure a way of knowing the name of the song being converted
-
-        Parameters
-        ----------
-        input_ds
-            Processed dataset with song and chromas
-        """
-        converted_songs = []
-        for song, chroma in dataset:
-            converted_songs.append(self.call(chroma))
-        return converted_songs
+        return piano_roll_to_pretty_midi(piano_roll_thresh, fs=16)
 
     def summary(self):
         self.generator.summary()
