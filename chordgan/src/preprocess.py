@@ -63,7 +63,7 @@ def reshape_step(midi, n_sequences, total_timesteps):
     return midi[: n_sequences * total_timesteps]  # discard any extra timesteps
 
 
-def clip_midi(midi, low=24, high=108):
+def clip_midi(midi, low, high):
     """Clips the given midi to a specified range of notes.
 
     Clipping is done along the first axis and the default range is C1 (24) - C8 (108).
@@ -73,7 +73,9 @@ def clip_midi(midi, low=24, high=108):
     midi : np.array
         The midi array to clip.
     low : int
+        Index of lowest note to keep.
     high : int
+        Index of highest note to keep.
 
     Returns
     -------
@@ -99,7 +101,7 @@ def normalize_velocities(midi):
     return midi
 
 
-def get_songs(path, n_bars=4, fs=16):
+def get_songs(path, n_bars=4, fs=16, low=24, high=102):
     """Loads midi files from the given path and converts them to piano roll format.
 
     Parameters
@@ -111,6 +113,10 @@ def get_songs(path, n_bars=4, fs=16):
     fs : int
         The sampling rate when generating the piano roll. It is also the number of 
         notes that each bar will contain.
+    low : int
+        Index of lowest note to keep.
+    high : int
+        Index of highest note to keep.
 
     Returns
     -------
@@ -128,7 +134,7 @@ def get_songs(path, n_bars=4, fs=16):
         try:
             data = pretty_midi.PrettyMIDI(f)
             song = data.get_piano_roll(fs=fs)
-            song = clip_midi(song)
+            song = clip_midi(song, low, high)
             song = normalize_velocities(song)
             song = song.T  # Transpose the song to (n_notes, note_range)
 
@@ -212,7 +218,7 @@ def join_datasets(song_ds, chroma_ds, shuffle, shuffle_buffer=10000):
     return ds.prefetch(1)
 
 
-def load_data(fpath, genre, shuffle=True):
+def load_data(fpath, genre, note_range=(24, 102), shuffle=True):
     """Loads and preprocess the data as required for ChordGAN
 
     Parameters
@@ -233,7 +239,9 @@ def load_data(fpath, genre, shuffle=True):
 
     full_path = os.path.join(fpath, genre)
 
-    songs, names, chromas = get_songs(full_path)
+    low_note, high_note = note_range
+
+    songs, names, chromas = get_songs(full_path, low=low_note, high=high_note)
     song_ds = create_dataset(songs)
     chromas_ds = create_dataset(chromas)
 
