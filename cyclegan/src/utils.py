@@ -104,6 +104,11 @@ def input_padding(X, pad_size=3):
         Input tensor to pad
     pad_size : int, Optional
         The size of the padding.
+    
+    Returns
+    -------
+        Input tenser with paddings of shape (pad_size, pad_size) applied to the 
+        2nd and 3rd dimensions.
     """
     return tf.pad(
         X, [[0, 0], [pad_size, pad_size], [pad_size, pad_size], [0, 0]], mode="REFLECT"
@@ -118,6 +123,22 @@ def create_checkpoint(
     max_to_keep=5,
     **check_kwargs,
 ):
+    """Creates a model checkpoint
+
+    Parameters
+    ----------
+    genre_A:
+    genre_B:
+    epochs:
+    checkpoint_dir:
+    max_to_keep: int
+    **check_kwargs 
+        Additional keyword arguments to pass to tf.Checkpoint
+    
+    Returns
+    -------
+        Initialized checkpoint manager.
+    """
     dir_name = "{}2{}-{}e-{}".format(
         genre_A, genre_B, epochs, datetime.now().strftime("%Y-%m-%d")
     )
