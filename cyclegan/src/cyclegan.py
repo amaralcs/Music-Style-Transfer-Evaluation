@@ -56,19 +56,14 @@ class CycleGAN(Model):
         self,
         d_optimizers=None,
         g_optimizers=None,
+        default_init={"learning_rate": 2e-4, "beta_1":0.5}
     ):
         # Set the default optimizers for the discriminator
         if not d_optimizers:
-            d_optimizers = [
-                Adam(learning_rate=0.0002, beta_1=0.5),
-                Adam(learning_rate=0.0002, beta_1=0.5),
-            ]
+            d_optimizers = [Adam(**default_init), Adam(**default_init)]
         # and for the generator
         if not g_optimizers:
-            g_optimizers = [
-                Adam(learning_rate=0.0002, beta_1=0.5),
-                Adam(learning_rate=0.0002, beta_1=0.5),
-            ]
+            g_optimizers = [Adam(**default_init), Adam(**default_init)]
 
         self.d_A_opt, self.d_B_opt = d_optimizers
         self.g_A2B_opt, self.g_B2A_opt = g_optimizers
@@ -80,6 +75,25 @@ class CycleGAN(Model):
         self.generator_B2A = self.build_generator("generator_B2A")
 
         super(CycleGAN, self).compile()
+
+    def get_config(self):
+        """Loads the model configuration"""
+        base_config = super().get_config()
+        return {
+            **base_config,
+            "genre_A": self.genre_A,
+            "genre_B": self.genre_B,
+            "pitch_range": self.pitch_range,
+            "n_timesteps": self.n_timesteps,
+            "n_units_discriminator": self.n_units_discriminator,
+            "n_units_generator": self.n_units_generator,
+            "l1_lambda": self.l1_lambda,
+            "gamma": self.gamma,
+            "sigma_d": self.sigma_d ,
+            "initializer": self.initializer,
+            "checkpoint_dir": self.checkpoint_dir,
+            "samples_dir": self.samples_dir
+        }
 
     def d_loss_fake(self, y_true, y_preds):
         """Calculates the MSE between y_true a tensor of zeros of shape y_preds.shape
