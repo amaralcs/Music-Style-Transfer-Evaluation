@@ -1,10 +1,20 @@
 import os
+import logging
 import numpy as np
+from glob import glob
 from datetime import datetime
+from functools import reduce
+
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.train import Checkpoint, CheckpointManager
 from tensorflow.keras.layers import Layer, Input, Conv2D, Lambda, ReLU
+
+
+logger = logging.getLogger("utils_logger")
+logger.setLevel(logging.INFO)
+logger.addHandler(logging.StreamHandler())
+
 
 
 class InstanceNorm(Layer):
@@ -147,3 +157,103 @@ def create_checkpoint(
     checkpoint = Checkpoint(**check_kwargs)
     manager = CheckpointManager(checkpoint, checkpoint_dir, max_to_keep=max_to_keep)
     return manager
+
+
+def create_dataset(tensor_list):
+    """Converts the a list of numpy arrays into a tensorflow dataset.
+
+    Parameters
+    ----------
+    songs : List
+        List of numpy arrays. That is, the piano roll representations of songs/chromas
+
+    Returns
+    -------
+    tf.data.Dataset
+    """
+    logger.info("Creating TF dataset from the loaded phrases")
+    datasets = [tf.data.Dataset.from_tensors(tensor) for tensor in tensor_list]
+    return reduce(lambda ds1, ds2: ds1.concatenate(ds2), datasets)
+
+
+def load_np_phrases(path, set_type="train"):
+    """Loads the preprocessed numpy phrases from a given path.
+    
+    Parameters
+    ----------
+    path : str
+        Path to the prepared phrases.
+    set_type: str, Optional
+        Whether to load from train/test folder.
+
+    Returns
+    -------
+    Lis[np.array]
+    """
+    logger.info(f"Loading {set_type} phrases from {path}")
+    fnames = glob(os.path.join(path, set_type, "*.*"))
+    return [np.load(fname) for fname in fnames]
+
+def join_datasets(dataset_a, dataset_b, shuffle=True, shuffle_buffer=50_000):
+    """Joins two given datasets to create inputs of the form ((a1, b1), (a2, b2), ...)
+
+    Parameters
+    ----------
+    dataset_a : tf.data.Dataset
+        Dataset with songs from genre A.
+    dataset_b : tf.data.Dataset
+        Dataset with songs from genre B.
+    shuffle : bool, Optional
+        Whether to shuffle the resulting dataset.
+    shuffle_buffer : int, Optional
+        The size of the shuffle buffer
+
+    Returns
+    -------
+    tf.data.Dataset
+
+    Note
+    ----
+    I don't think I need batching here, but I can include it
+    if I use `tf.data.Dataset.bucket_by_sequence_length`.
+
+    The map function expanding dims essentially creates a batch of size 1 so that
+    it fits the model inputs
+
+    """
+    logger.info("Joining datasets")
+    ds = tf.data.Dataset.zip((dataset_a, dataset_b)).map(
+        lambda song, chroma: (
+            tf.expand_dims(song, axis=0),
+            tf.expand_dims(chroma, axis=0),
+        )
+    )
+    if shuffle:
+        ds = ds.shuffle(shuffle_buffer)
+
+    return ds.prefetch(1)
+
+def load_data(path_a, path_b, set_type, shuffle=True):
+    """Helper function for loading the nummpy phrases and converting them into a tensorflow dataset
+    
+    Parameters
+    ----------
+    path_a : str
+        Path to where phrases of genre A are stored.
+    path_b : str
+        Path to where phrases of genre B are stored.
+    set_type: str, Optional
+        Whether to load from train/test folder.
+    shuffle : bool, Optional
+        Whether to shuffle the resulting dataset.
+
+    Returns
+    -------
+    tf.data.Dataset
+    """
+    X_a_train = load_np_phrases(path_a, set_type)
+    dataset_a = create_dataset(X_a_train)
+    X_b_train = load_np_phrases(path_b, set_type)
+    dataset_b = create_dataset(X_b_train)
+
+    return join_datasets(dataset_a, dataset_b, shuffle=shuffle)
