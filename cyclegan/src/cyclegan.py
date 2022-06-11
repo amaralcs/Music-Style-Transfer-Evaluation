@@ -58,6 +58,21 @@ class CycleGAN(Model):
         g_optimizers=None,
         default_init={"learning_rate": 2e-4, "beta_1":0.5}
     ):
+        """Builds the CycleGAN model
+
+        Parameters
+        ----------
+        d_optimizers : List[tf.keras.optimizer, tf.keras.optimizer]
+            List with optimizers to use for d_A and d_B, respectively.
+        g_optimizers : List[tf.keras.optimizer, tf.keras.optimizer]
+            List with optimizers to use for g_A2B and g_B2A, respectively.
+        default_init : dict, Optional
+            Predefined parameter values for Adam optimzer to use as the default.        
+
+        Returns
+        -------
+        None
+        """
         # Set the default optimizers for the discriminator
         if not d_optimizers:
             d_optimizers = [Adam(**default_init), Adam(**default_init)]
@@ -95,38 +110,48 @@ class CycleGAN(Model):
             "samples_dir": self.samples_dir
         }
 
-    def d_loss_fake(self, y_true, y_preds):
-        """Calculates the MSE between y_true a tensor of zeros of shape y_preds.shape
+    def d_loss_fake(self, y_preds):
+        """Calculates the MSE between y_preds and a tensor of zeros of shape y_preds.shape
 
         Parameters
         ----------
-        y_true : tf.tensor
         y_preds : tf.tensor
+
+        Returns
+        -------
+            Tensor with MSE result.
         """
-        y_preds = tf.zeros_like(y_preds)
+        y_true = tf.zeros_like(y_preds)
         return tf.reduce_mean(tf.square(y_true - y_preds))
 
-    def d_loss_real(self, y_true, y_preds):
-        """Calculates the MSE between y_true a tensor of ones of shape y_preds.shape
+    def d_loss_real(self, y_preds):
+        """Calculates the MSE between y_preds and a tensor of ones of shape y_preds.shape
 
         Parameters
         ----------
-        y_true : tf.tensor
         y_preds : tf.tensor
+
+        Returns
+        -------
+            Tensor with MSE result.
         """
-        y_preds = tf.ones_like(y_preds)
+        y_true = tf.ones_like(y_preds)
         return tf.reduce_mean(tf.square(y_true - y_preds))
 
-    def d_loss_single(self, y_true, y_preds):
+    def d_loss_single(self, y_true, y_fake):
         """The overall loss for a single discriminator
 
         Parameters
         ----------
         y_true : tf.tensor
         y_preds : tf.tensor
+
+        Returns
+        -------
+            Tensor with the discriminator loss.
         """
-        loss_fake = self.d_loss_fake(y_true, y_preds)
-        loss_real = self.d_loss_real(y_true, y_preds)
+        loss_fake = self.d_loss_fake(y_fake)
+        loss_real = self.d_loss_real(y_true)
         return (loss_fake + loss_real) / 2
 
     def build_discriminator(self, name):
@@ -192,6 +217,10 @@ class CycleGAN(Model):
             Tuple containing the original songs X_a and X_b
         y_preds : tuple(tf.tensor, tf.tensor)
             Tuple containing the cycled songs X'_a and X'_b
+        
+        Returns
+        -------
+            Tensor with the cycle loss.
         """
         X_a, X_b = y_true
         X_a_cycle, X_b_cycle = y_preds
@@ -213,6 +242,9 @@ class CycleGAN(Model):
             Tensor with predictions for the discriminator of target genre
         y_preds : tuple(tf.tensor, tf.tensor)
             Tensor with predictions for the discriminator of target genre
+        Returns
+        -------
+            Tensor with the generator loss.
         """
         return cycle_loss + tf.reduce_mean(tf.square(y_true - tf.ones_like(y_true)))
 
@@ -282,6 +314,68 @@ class CycleGAN(Model):
         generator = Model(inputs=inputs, outputs=outputs, name=name)
         generator.add_loss([self.cycle_loss, self.g_loss_single])
         return generator
+
+
+    def gaussian_noise(self):
+        """Generates Gaussian noise sampled form N(0, sigma_d) with shape:
+            [batch_size, n_timesteps, pitch_range, 1]
+        
+        Note that the absolute value of the sampled values are returned.
+
+        Returns
+        -------
+        A tensor of the specified shape filled with random normal values.
+        """
+        return tf.abs(
+            tf.random.normal(
+                shape=[None, self.n_timesteps, self.pitch_range, 1],
+                mean=0,
+                stddev=self.sigma_d
+            )
+        )
+
+    def train_step(self, inputs):
+        """The training step.
+
+        Parameters
+        ----------
+        inputs : List[np.array, np.array]
+            Input samples from genre_a and genre_b respectively
+        """
+        X_a, X_b = inputs[:, :, :, 0], inputs[:, :, :, 1]
+        
+        noise = self.gaussian_noise()
+
+        with tf.GradientTape(persistent=True) as g_tape, tf.GradientTape(persistent=True) as d_tape:
+            X_a_transfer = self.generator_A2B(X_a, training=True) # X_a in the style of X_b
+            X_a_cycle = self.generator_B2A(X_a_transfer, training=True)
+
+            X_b_transfer = self.generator_B2A(X_b, training=True) # X_b in the style of X_a
+            X_b_cycle = self.generator_A2B(X_b_transfer, training=True)
+
+            # generator losses
+            cycle_loss = self.cycle_loss((X_a, X_b), (X_a_cycle, X_b_cycle))
+            g_A2B_loss = self.g_loss_single(X_a_transfer, cycle_loss)
+            g_B2A_loss = self.g_loss_single(X_b_transfer, cycle_loss)
+            g_loss = g_A2B_loss + g_B2A_loss - cycle_loss
+
+            # discriminator evaluation
+            d_a_real_logits = self.discriminator_A(X_a + noise, training=True)
+            d_a_fake_logits = self.discriminator_A(X_b_transfer + noise, training=True)
+
+            d_b_real_logits = self.discriminator_B(X_b + noise, training=True)
+            d_b_fake_logits = self.discriminator_B(X_a_transfer + noise, training=True)
+
+            # discriminator losses
+            d_A_loss = self.d_loss_single(d_a_real_logits, d_a_fake_logits)
+            d_B_loss = self.d_loss_single(d_b_real_logits, d_b_fake_logits)
+            
+        g_A2B_gradients = g_tape.gradient(g_A2B_loss, self.generator_A2B.trainable_variables)
+        g_B2A_gradients = g_tape.gradient(g_B2A_loss, self.generator_B2A.trainable_variables)
+
+        d_A_gradients = d_tape.gradient(d_A_loss, self.discriminator_A.trainable_variables)
+        d_B_gradients = d_tape.gradient(d_B_loss, self.discriminator_B.trainable_variables)
+
 
     def call(self, inputs):
         pass
