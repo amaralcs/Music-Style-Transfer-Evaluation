@@ -1,7 +1,4 @@
-import os
-import time
-import json
-from glob import glob
+import logging
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Model
@@ -14,10 +11,12 @@ from tensorflow.keras.layers import (
     LeakyReLU,
     ReLU,
 )
-from utils import input_padding
 
-from utils import InstanceNorm, ResNetBlock
+from utils import InstanceNorm, ResNetBlock, input_padding
 
+logger = logging.getLogger("cyclegan_logger")
+logger.setLevel(logging.DEBUG)
+logger.addHandler(logging.StreamHandler())
 
 class CycleGAN(Model):
     def __init__(
@@ -56,7 +55,7 @@ class CycleGAN(Model):
         self,
         d_optimizers=None,
         g_optimizers=None,
-        default_init={"learning_rate": 2e-4, "beta_1":0.5}
+        default_init={"learning_rate": 2e-4, "beta_1": 0.5},
     ):
         """Builds the CycleGAN model
 
@@ -67,7 +66,7 @@ class CycleGAN(Model):
         g_optimizers : List[tf.keras.optimizer, tf.keras.optimizer]
             List with optimizers to use for g_A2B and g_B2A, respectively.
         default_init : dict, Optional
-            Predefined parameter values for Adam optimzer to use as the default.        
+            Predefined parameter values for Adam optimzer to use as the default.
 
         Returns
         -------
@@ -104,10 +103,10 @@ class CycleGAN(Model):
             "n_units_generator": self.n_units_generator,
             "l1_lambda": self.l1_lambda,
             "gamma": self.gamma,
-            "sigma_d": self.sigma_d ,
+            "sigma_d": self.sigma_d,
             "initializer": self.initializer,
             "checkpoint_dir": self.checkpoint_dir,
-            "samples_dir": self.samples_dir
+            "samples_dir": self.samples_dir,
         }
 
     def d_loss_fake(self, y_preds):
@@ -217,7 +216,7 @@ class CycleGAN(Model):
             Tuple containing the original songs X_a and X_b
         y_preds : tuple(tf.tensor, tf.tensor)
             Tuple containing the cycled songs X'_a and X'_b
-        
+
         Returns
         -------
             Tensor with the cycle loss.
@@ -226,8 +225,8 @@ class CycleGAN(Model):
         X_a_cycle, X_b_cycle = y_preds
 
         return self.l1_lambda * (
-            self.reduce_mean(self.abs(X_a - X_a_cycle))
-            + self.reduce_mean(self.abs(X_b - X_b_cycle))
+            tf.reduce_mean(tf.abs(X_a - X_a_cycle))
+            + tf.reduce_mean(tf.abs(X_b - X_b_cycle))
         )
 
     def g_loss_single(self, y_true, cycle_loss):
@@ -315,24 +314,23 @@ class CycleGAN(Model):
         generator.add_loss([self.cycle_loss, self.g_loss_single])
         return generator
 
-
-    def gaussian_noise(self):
+    def gaussian_noise(self, batch_size):
         """Generates Gaussian noise sampled form N(0, sigma_d) with shape:
             [batch_size, n_timesteps, pitch_range, 1]
-        
+
         Note that the absolute value of the sampled values are returned.
 
         Returns
         -------
         A tensor of the specified shape filled with random normal values.
         """
-        return tf.abs(
-            tf.random.normal(
-                shape=[None, self.n_timesteps, self.pitch_range, 1],
-                mean=0,
-                stddev=self.sigma_d
-            )
+        sample = tf.random.normal(
+            shape=[batch_size, self.n_timesteps, self.pitch_range, 1],
+            mean=0,
+            stddev=self.sigma_d,
+            dtype=tf.float32
         )
+        return tf.abs(sample)
 
     def train_step(self, inputs):
         """The training step.
@@ -341,16 +339,29 @@ class CycleGAN(Model):
         ----------
         inputs : List[np.array, np.array]
             Input samples from genre_a and genre_b respectively
-        """
-        X_a, X_b = inputs[:, :, :, 0], inputs[:, :, :, 1]
-        
-        noise = self.gaussian_noise()
 
-        with tf.GradientTape(persistent=True) as g_tape, tf.GradientTape(persistent=True) as d_tape:
-            X_a_transfer = self.generator_A2B(X_a, training=True) # X_a in the style of X_b
+        Returns
+        -------
+        None
+        """
+        X_a, X_b = inputs # unpack the inputs
+        batch_size = X_a.shape[0]
+        logger.debug(f"Unpacked inputs shape: {X_a.shape, X_b.shape}")
+
+        noise = self.gaussian_noise(batch_size)
+
+        with tf.GradientTape(persistent=True) as g_tape, tf.GradientTape(
+            persistent=True
+        ) as d_tape:
+            # X_a in the style of X_b
+            X_a_transfer = self.generator_A2B(
+                X_a, training=True
+            )  
             X_a_cycle = self.generator_B2A(X_a_transfer, training=True)
 
-            X_b_transfer = self.generator_B2A(X_b, training=True) # X_b in the style of X_a
+            X_b_transfer = self.generator_B2A(
+                X_b, training=True
+            )  # X_b in the style of X_a
             X_b_cycle = self.generator_A2B(X_b_transfer, training=True)
 
             # generator losses
@@ -369,13 +380,28 @@ class CycleGAN(Model):
             # discriminator losses
             d_A_loss = self.d_loss_single(d_a_real_logits, d_a_fake_logits)
             d_B_loss = self.d_loss_single(d_b_real_logits, d_b_fake_logits)
-            
+
+        # generator gradients
         g_A2B_gradients = g_tape.gradient(g_A2B_loss, self.generator_A2B.trainable_variables)
         g_B2A_gradients = g_tape.gradient(g_B2A_loss, self.generator_B2A.trainable_variables)
+        self.g_A2B_opt.apply_gradients(
+            zip(g_A2B_gradients, self.generator_A2B.trainable_variables)
+        )
+        self.g_B2A_opt.apply_gradients(
+            zip(g_B2A_gradients, self.generator_B2A.trainable_variables)
+        )
 
+        # discriminator gradients
         d_A_gradients = d_tape.gradient(d_A_loss, self.discriminator_A.trainable_variables)
         d_B_gradients = d_tape.gradient(d_B_loss, self.discriminator_B.trainable_variables)
+        self.d_A_optimizer.apply_gradients(
+            zip(d_A_gradients,self.discriminator_A.trainable_variables)
+        )
+        self.d_B_optimizer.apply_gradients(
+            zip(d_B_gradients,self.discriminator_B.trainable_variables)
+        )
 
 
     def call(self, inputs):
+        # TODO
         pass
