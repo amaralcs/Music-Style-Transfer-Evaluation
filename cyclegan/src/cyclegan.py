@@ -1,4 +1,3 @@
-import logging
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Model
@@ -14,9 +13,6 @@ from tensorflow.keras.layers import (
 
 from utils import InstanceNorm, ResNetBlock, input_padding
 
-logger = logging.getLogger("cyclegan_logger")
-logger.setLevel(logging.DEBUG)
-logger.addHandler(logging.StreamHandler())
 
 class CycleGAN(Model):
     def __init__(
@@ -325,10 +321,10 @@ class CycleGAN(Model):
         A tensor of the specified shape filled with random normal values.
         """
         sample = tf.random.normal(
-            shape=[batch_size, self.n_timesteps, self.pitch_range, 1],
+            shape=[self.n_timesteps, self.pitch_range, 1],
             mean=0,
             stddev=self.sigma_d,
-            dtype=tf.float32
+            dtype=tf.float32,
         )
         return tf.abs(sample)
 
@@ -342,21 +338,18 @@ class CycleGAN(Model):
 
         Returns
         -------
-        None
+        dict
+            Dictionary of losses
         """
-        X_a, X_b = inputs # unpack the inputs
-        batch_size = X_a.shape[0]
-        logger.debug(f"Unpacked inputs shape: {X_a.shape, X_b.shape}")
+        X_a, X_b = inputs  # unpack the inputs
 
-        noise = self.gaussian_noise(batch_size)
+        noise = self.gaussian_noise()
 
         with tf.GradientTape(persistent=True) as g_tape, tf.GradientTape(
             persistent=True
         ) as d_tape:
             # X_a in the style of X_b
-            X_a_transfer = self.generator_A2B(
-                X_a, training=True
-            )  
+            X_a_transfer = self.generator_A2B(X_a, training=True)
             X_a_cycle = self.generator_B2A(X_a_transfer, training=True)
 
             X_b_transfer = self.generator_B2A(
@@ -382,8 +375,12 @@ class CycleGAN(Model):
             d_B_loss = self.d_loss_single(d_b_real_logits, d_b_fake_logits)
 
         # generator gradients
-        g_A2B_gradients = g_tape.gradient(g_A2B_loss, self.generator_A2B.trainable_variables)
-        g_B2A_gradients = g_tape.gradient(g_B2A_loss, self.generator_B2A.trainable_variables)
+        g_A2B_gradients = g_tape.gradient(
+            g_A2B_loss, self.generator_A2B.trainable_variables
+        )
+        g_B2A_gradients = g_tape.gradient(
+            g_B2A_loss, self.generator_B2A.trainable_variables
+        )
         self.g_A2B_opt.apply_gradients(
             zip(g_A2B_gradients, self.generator_A2B.trainable_variables)
         )
@@ -392,16 +389,27 @@ class CycleGAN(Model):
         )
 
         # discriminator gradients
-        d_A_gradients = d_tape.gradient(d_A_loss, self.discriminator_A.trainable_variables)
-        d_B_gradients = d_tape.gradient(d_B_loss, self.discriminator_B.trainable_variables)
-        self.d_A_optimizer.apply_gradients(
-            zip(d_A_gradients,self.discriminator_A.trainable_variables)
+        d_A_gradients = d_tape.gradient(
+            d_A_loss, self.discriminator_A.trainable_variables
         )
-        self.d_B_optimizer.apply_gradients(
-            zip(d_B_gradients,self.discriminator_B.trainable_variables)
+        d_B_gradients = d_tape.gradient(
+            d_B_loss, self.discriminator_B.trainable_variables
+        )
+        self.d_A_opt.apply_gradients(
+            zip(d_A_gradients, self.discriminator_A.trainable_variables)
+        )
+        self.d_B_opt.apply_gradients(
+            zip(d_B_gradients, self.discriminator_B.trainable_variables)
         )
 
+        return {
+            "d_A_loss": d_A_loss,
+            "d_B_loss": d_B_loss,
+            "g_A2B_loss": g_A2B_loss,
+            "g_B2A_loss": g_B2A_loss,
+            "cycle_loss": cycle_loss,
+        }
 
     def call(self, inputs):
-        # TODO
-        pass
+        X_a, X_b = inputs
+        return self.generator_A2B(X_a)
