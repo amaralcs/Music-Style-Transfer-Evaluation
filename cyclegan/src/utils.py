@@ -41,7 +41,7 @@ class InstanceNorm(Layer):
     def call(self, inputs):
         mean, variance = tf.nn.moments(inputs, axes=[1, 2], keepdims=True)
         inv = tf.math.rsqrt(variance + self.epsilon)
-        normalized = (inputs - self.mean) * inv
+        normalized = (inputs - mean) * inv
         return self.scale * normalized + self.offset
 
 
@@ -86,7 +86,7 @@ class ResNetBlock(Layer):
             input_padding, arguments={"pad_size": self.pad_size}, name=f"padding_1"
         )
         self.conv2d_1 = Conv2D(
-            (input_shape[-1], self.n_units),
+            self.n_units, # input_shape[-1], # TODO: Check whether to use this or `self.n_units`
             kernel_size=self.kernel_size,
             strides=self.strides,
             padding=self.padding,
@@ -95,7 +95,7 @@ class ResNetBlock(Layer):
             name="conv2D_1",
         )
         self.conv2d_2 = Conv2D(
-            (input_shape[-1], self.n_units),
+            self.n_units, # input_shape[-1], # TODO: Check whether to use this or `self.n_units`
             kernel_size=self.kernel_size,
             strides=self.strides,
             padding=self.padding,
@@ -220,7 +220,7 @@ def load_np_phrases(path, sample_size, set_type="train"):
     return [np.load(fname).astype(np.float32) for fname in fnames]
 
 
-def join_datasets(dataset_a, dataset_b, shuffle=True, shuffle_buffer=50_000):
+def join_datasets(dataset_a, dataset_b, batch_size=16, shuffle=True, shuffle_buffer=50_000):
     """Joins two given datasets to create inputs of the form ((a1, b1), (a2, b2), ...)
 
     Parameters
@@ -242,25 +242,16 @@ def join_datasets(dataset_a, dataset_b, shuffle=True, shuffle_buffer=50_000):
     ----
     I don't think I need batching here, but I can include it
     if I use `tf.data.Dataset.bucket_by_sequence_length`.
-
-    The map function expanding dims essentially creates a batch of size 1 so that
-    it fits the model inputs
-
     """
     logger.info("Joining datasets")
-    ds = tf.data.Dataset.zip((dataset_a, dataset_b)).map(
-        lambda song, chroma: (
-            tf.expand_dims(song, axis=0),
-            tf.expand_dims(chroma, axis=0),
-        )
-    )
+    ds = tf.data.Dataset.zip((dataset_a, dataset_b))
     if shuffle:
         ds = ds.shuffle(shuffle_buffer)
 
-    return ds.prefetch(1)
+    return ds.batch(batch_size).prefetch(1)
 
 
-def load_data(path_a, path_b, set_type, shuffle=True, sample_size=500):
+def load_data(path_a, path_b, set_type, batch_size, shuffle=True, sample_size=500):
     """Helper function for loading the numpy phrases and converting them into a tensorflow dataset
 
     Parameters
@@ -271,8 +262,13 @@ def load_data(path_a, path_b, set_type, shuffle=True, sample_size=500):
         Path to where phrases of genre B are stored.
     set_type: str, Optional
         Whether to load from train/test folder.
+    batch_size : int
+        Batch size to use for the dataset.
     shuffle : bool, Optional
         Whether to shuffle the resulting dataset.
+    sample_size : int
+        If not-null, use only the defined number of samples from each of the datasets.
+        This is useful for testing runs. 
 
     Returns
     -------
