@@ -176,7 +176,7 @@ def create_dataset(tensor_list):
     return reduce(lambda ds1, ds2: ds1.concatenate(ds2), datasets)
 
 
-def load_np_phrases(path, set_type="train"):
+def load_np_phrases(path, sample_size, set_type="train"):
     """Loads the preprocessed numpy phrases from a given path.
     
     Parameters
@@ -192,7 +192,14 @@ def load_np_phrases(path, set_type="train"):
     """
     logger.info(f"Loading {set_type} phrases from {path}")
     fnames = glob(os.path.join(path, set_type, "*.*"))
-    return [np.load(fname) for fname in fnames]
+    if len(fnames) == 0:
+        logger.error(
+            f"There was an error loading data from {path}: Are you sure the path is correct?",
+            f" The current working directory is {os.getcwd()}"
+        )
+    if sample_size:
+        fnames = fnames[:sample_size]
+    return [np.load(fname).astype(np.float32) for fname in fnames]
 
 def join_datasets(dataset_a, dataset_b, shuffle=True, shuffle_buffer=50_000):
     """Joins two given datasets to create inputs of the form ((a1, b1), (a2, b2), ...)
@@ -233,8 +240,8 @@ def join_datasets(dataset_a, dataset_b, shuffle=True, shuffle_buffer=50_000):
 
     return ds.prefetch(1)
 
-def load_data(path_a, path_b, set_type, shuffle=True):
-    """Helper function for loading the nummpy phrases and converting them into a tensorflow dataset
+def load_data(path_a, path_b, set_type, shuffle=True, sample_size=500):
+    """Helper function for loading the numpy phrases and converting them into a tensorflow dataset
     
     Parameters
     ----------
@@ -251,9 +258,9 @@ def load_data(path_a, path_b, set_type, shuffle=True):
     -------
     tf.data.Dataset
     """
-    X_a_train = load_np_phrases(path_a, set_type)
+    X_a_train = load_np_phrases(path_a, sample_size, set_type)
     dataset_a = create_dataset(X_a_train)
-    X_b_train = load_np_phrases(path_b, set_type)
+    X_b_train = load_np_phrases(path_b, sample_size, set_type)
     dataset_b = create_dataset(X_b_train)
 
     return join_datasets(dataset_a, dataset_b, shuffle=shuffle)
