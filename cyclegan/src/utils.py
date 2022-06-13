@@ -16,7 +16,6 @@ logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler())
 
 
-
 class InstanceNorm(Layer):
     """Custom implementation of Layer Normalization"""
 
@@ -24,24 +23,26 @@ class InstanceNorm(Layer):
         super(InstanceNorm, self).__init__()
         self.epsilon = epsilon
 
-    def call(self, X):
-        ## TODO: review InstanceNorm and refactor this
-        scale = tf.Variable(
-            initial_value=np.random.normal(1.0, 0.02, X.shape[-1:]),
+    def build(self, input_shape):
+        self.scale = tf.Variable(
+            initial_value=np.random.normal(1.0, 0.02, input_shape[-1:]),
             trainable=True,
             name="SCALE",
             dtype=tf.float32,
         )
-        offset = tf.Variable(
-            initial_value=np.zeros(X.shape[-1:]),
+        self.offset = tf.Variable(
+            initial_value=np.zeros(input_shape[-1:]),
             trainable=True,
             name="OFFSET",
             dtype=tf.float32,
         )
-        mean, variance = tf.nn.moments(X, axes=[1, 2], keepdims=True)
+        super(InstanceNorm, self).build(input_shape)
+
+    def call(self, inputs):
+        mean, variance = tf.nn.moments(inputs, axes=[1, 2], keepdims=True)
         inv = tf.math.rsqrt(variance + self.epsilon)
-        normalized = (X - mean) * inv
-        return scale * normalized + offset
+        normalized = (inputs - self.mean) * inv
+        return self.scale * normalized + self.offset
 
 
 class ResNetBlock(Layer):
@@ -77,32 +78,49 @@ class ResNetBlock(Layer):
         self.padding = "valid"
         self.activation = keras.activations.get(activation)
 
-    def call(self, X):
+    def build(self, input_shape):
+        self.padding_1 = Lambda(
+            input_padding, arguments={"pad_size": self.pad_size}, name=f"padding_1"
+        )
+        self.padding_2 = Lambda(
+            input_padding, arguments={"pad_size": self.pad_size}, name=f"padding_1"
+        )
+        self.conv2d_1 = Conv2D(
+            (input_shape[-1], self.n_units),
+            kernel_size=self.kernel_size,
+            strides=self.strides,
+            padding=self.padding,
+            kernel_initializer=self.kernel_initializer,
+            use_bias=False,
+            name="conv2D_1",
+        )
+        self.conv2d_2 = Conv2D(
+            (input_shape[-1], self.n_units),
+            kernel_size=self.kernel_size,
+            strides=self.strides,
+            padding=self.padding,
+            kernel_initializer=self.kernel_initializer,
+            use_bias=False,
+            name="conv2D_2",
+        )
+        self.instance_norm = InstanceNorm()
+
+        super(ResNetBlock, self).build(input_shape)
+
+    def call(self, inputs):
         """
         Parameters
         ----------
-        X : tf.tensor
+        inputs : tf.tensor
             Input tensor.
         """
-        y = X
-
-        for idx in range(2):
-            y = Lambda(
-                input_padding,
-                arguments={"pad_size": self.pad_size},
-                name=f"padding_{idx}",
-            )(y)
-            y = Conv2D(
-                self.n_units,
-                kernel_size=self.kernel_size,
-                strides=self.strides,
-                padding=self.padding,
-                kernel_initializer=self.kernel_initializer,
-                use_bias=False,
-            )(y)
-            y = InstanceNorm()(y)
-
-        return self.activation(y + X)
+        X = self.padding_1(inputs)
+        X = self.conv2d_1(X)
+        X = self.instance_norm(X)
+        X = self.padding_2(X)
+        X = self.conv2d_2(X)
+        X = self.instance_norm(X)
+        return self.activation(X + inputs)
 
 
 def input_padding(X, pad_size=3):
@@ -114,10 +132,10 @@ def input_padding(X, pad_size=3):
         Input tensor to pad
     pad_size : int, Optional
         The size of the padding.
-    
+
     Returns
     -------
-        Input tenser with paddings of shape (pad_size, pad_size) applied to the 
+        Input tenser with paddings of shape (pad_size, pad_size) applied to the
         2nd and 3rd dimensions.
     """
     return tf.pad(
@@ -142,9 +160,9 @@ def create_checkpoint(
     epochs:
     checkpoint_dir:
     max_to_keep: int
-    **check_kwargs 
+    **check_kwargs
         Additional keyword arguments to pass to tf.Checkpoint
-    
+
     Returns
     -------
         Initialized checkpoint manager.
@@ -178,7 +196,7 @@ def create_dataset(tensor_list):
 
 def load_np_phrases(path, sample_size, set_type="train"):
     """Loads the preprocessed numpy phrases from a given path.
-    
+
     Parameters
     ----------
     path : str
@@ -195,11 +213,12 @@ def load_np_phrases(path, sample_size, set_type="train"):
     if len(fnames) == 0:
         logger.error(
             f"There was an error loading data from {path}: Are you sure the path is correct?",
-            f" The current working directory is {os.getcwd()}"
+            f" The current working directory is {os.getcwd()}",
         )
     if sample_size:
         fnames = fnames[:sample_size]
     return [np.load(fname).astype(np.float32) for fname in fnames]
+
 
 def join_datasets(dataset_a, dataset_b, shuffle=True, shuffle_buffer=50_000):
     """Joins two given datasets to create inputs of the form ((a1, b1), (a2, b2), ...)
@@ -240,9 +259,10 @@ def join_datasets(dataset_a, dataset_b, shuffle=True, shuffle_buffer=50_000):
 
     return ds.prefetch(1)
 
+
 def load_data(path_a, path_b, set_type, shuffle=True, sample_size=500):
     """Helper function for loading the numpy phrases and converting them into a tensorflow dataset
-    
+
     Parameters
     ----------
     path_a : str
