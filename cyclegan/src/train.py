@@ -90,17 +90,14 @@ if __name__ == "__main__":
     log_dir = "train_logs"
     os.makedirs(log_dir, exist_ok=True)
 
-    lr = 0.002
+    lr = 0.0002
     beta_1 = 0.5
     optimizer_params = dict(learning_rate=lr, beta_1=beta_1)
-    batch_size = 20
+    batch_size = 24
     epochs = 1
     step = 2
 
-    dataset = load_data(path_a, path_b, "train", batch_size=batch_size)
-    # We need to compute the model output shape to be able to save the weights
-    for (input_a, input_b) in dataset.take(1):
-        input_shape = (input_a.shape, input_b.shape)
+    dataset = load_data(path_a, path_b, "train", batch_size=batch_size, sample_size=10)
 
     # Setup monitoring and callbacks
     run_logdir, model_info = get_run_logdir(
@@ -116,5 +113,4 @@ if __name__ == "__main__":
     model.build_model(default_init=optimizer_params)
 
     model.fit(dataset, epochs=epochs, callbacks=callbacks)
-    model.compute_output_shape(input_shape)
     model.save_weights(f"{model_output}/{model_info}/weights")
