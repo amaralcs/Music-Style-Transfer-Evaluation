@@ -78,11 +78,11 @@ class CycleGAN(Model):
         self.d_A_opt, self.d_B_opt = d_optimizers
         self.g_A2B_opt, self.g_B2A_opt = g_optimizers
 
-        self.discriminator_A = self.build_discriminator("discriminator_A")
-        self.discriminator_B = self.build_discriminator("discriminator_B")
+        self.discriminator_A = self.build_discriminator("discriminator_A", self.d_A_opt)
+        self.discriminator_B = self.build_discriminator("discriminator_B", self.d_B_opt)
 
-        self.generator_A2B = self.build_generator("generator_A2B")
-        self.generator_B2A = self.build_generator("generator_B2A")
+        self.generator_A2B = self.build_generator("generator_A2B", self.g_A2B_opt)
+        self.generator_B2A = self.build_generator("generator_B2A", self.g_B2A_opt)
 
         super(CycleGAN, self).compile()
 
@@ -149,7 +149,7 @@ class CycleGAN(Model):
         loss_real = self.d_loss_real(y_true)
         return (loss_fake + loss_real) / 2
 
-    def build_discriminator(self, name):
+    def build_discriminator(self, name, optimizer):
         """Builds CycleGAN discriminator
 
         Returns
@@ -192,6 +192,7 @@ class CycleGAN(Model):
         )(X)
         discriminator = Model(inputs=inputs, outputs=outputs, name=name)
         discriminator.add_loss([self.d_loss_real, self.d_loss_fake, self.d_loss_single])
+        discriminator.compile(optimizer=optimizer)
         return discriminator
 
     def cycle_loss(self, y_true, y_preds):
@@ -243,7 +244,7 @@ class CycleGAN(Model):
         """
         return cycle_loss + tf.reduce_mean(tf.square(y_true - tf.ones_like(y_true)))
 
-    def build_generator(self, name):
+    def build_generator(self, name, optimizer):
         """Builds CycleGAN generator
 
         Returns
@@ -308,6 +309,7 @@ class CycleGAN(Model):
         )(X)
         generator = Model(inputs=inputs, outputs=outputs, name=name)
         generator.add_loss([self.cycle_loss, self.g_loss_single])
+        generator.compile(optimizer=optimizer)
         return generator
 
     def gaussian_noise(self):
