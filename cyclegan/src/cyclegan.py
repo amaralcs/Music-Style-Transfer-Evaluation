@@ -310,9 +310,9 @@ class CycleGAN(Model):
         generator.add_loss([self.cycle_loss, self.g_loss_single])
         return generator
 
-    def gaussian_noise(self, batch_size):
+    def gaussian_noise(self):
         """Generates Gaussian noise sampled form N(0, sigma_d) with shape:
-            [batch_size, n_timesteps, pitch_range, 1]
+            [n_timesteps, pitch_range, 1]
 
         Note that the absolute value of the sampled values are returned.
 

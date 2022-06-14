@@ -92,7 +92,7 @@ if __name__ == "__main__":
 
     lr = 0.0002
     beta_1 = 0.5
-    optimizer_params = dict(lr=lr, beta_1=beta_1)
+    optimizer_params = dict(learning_rate=lr, beta_1=beta_1)
     batch_size = 20
     epochs = 5
     step = 2

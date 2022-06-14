@@ -279,4 +279,4 @@ def load_data(path_a, path_b, set_type, batch_size, shuffle=True, sample_size=50
     X_b_train = load_np_phrases(path_b, sample_size, set_type)
     dataset_b = create_dataset(X_b_train)
 
-    return join_datasets(dataset_a, dataset_b, shuffle=shuffle)
+    return join_datasets(dataset_a, dataset_b, batch_size, shuffle=shuffle)
