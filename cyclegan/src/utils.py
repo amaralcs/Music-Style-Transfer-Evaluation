@@ -86,7 +86,7 @@ class ResNetBlock(Layer):
             input_padding, arguments={"pad_size": self.pad_size}, name=f"padding_1"
         )
         self.conv2d_1 = Conv2D(
-            self.n_units, # input_shape[-1], # TODO: Check whether to use this or `self.n_units`
+            self.n_units,  # input_shape[-1], # TODO: Check whether to use this or `self.n_units`
             kernel_size=self.kernel_size,
             strides=self.strides,
             padding=self.padding,
@@ -95,7 +95,7 @@ class ResNetBlock(Layer):
             name="conv2D_1",
         )
         self.conv2d_2 = Conv2D(
-            self.n_units, # input_shape[-1], # TODO: Check whether to use this or `self.n_units`
+            self.n_units,  # input_shape[-1], # TODO: Check whether to use this or `self.n_units`
             kernel_size=self.kernel_size,
             strides=self.strides,
             padding=self.padding,
@@ -143,40 +143,6 @@ def input_padding(X, pad_size=3):
     )
 
 
-def create_checkpoint(
-    genre_A,
-    genre_B,
-    epochs,
-    checkpoint_dir="checkpoints",
-    max_to_keep=5,
-    **check_kwargs,
-):
-    """Creates a model checkpoint
-
-    Parameters
-    ----------
-    genre_A:
-    genre_B:
-    epochs:
-    checkpoint_dir:
-    max_to_keep: int
-    **check_kwargs
-        Additional keyword arguments to pass to tf.Checkpoint
-
-    Returns
-    -------
-        Initialized checkpoint manager.
-    """
-    dir_name = "{}2{}-{}e-{}".format(
-        genre_A, genre_B, epochs, datetime.now().strftime("%Y-%m-%d")
-    )
-    os.makedirs(dir_name, exist_ok=True)
-
-    checkpoint = Checkpoint(**check_kwargs)
-    manager = CheckpointManager(checkpoint, checkpoint_dir, max_to_keep=max_to_keep)
-    return manager
-
-
 def create_dataset(tensor_list):
     """Converts the a list of numpy arrays into a tensorflow dataset.
 
@@ -220,7 +186,9 @@ def load_np_phrases(path, sample_size, set_type="train"):
     return [np.load(fname).astype(np.float32) for fname in fnames]
 
 
-def join_datasets(dataset_a, dataset_b, batch_size=16, shuffle=True, shuffle_buffer=50_000):
+def join_datasets(
+    dataset_a, dataset_b, batch_size=16, shuffle=True, shuffle_buffer=50_000
+):
     """Joins two given datasets to create inputs of the form ((a1, b1), (a2, b2), ...)
 
     Parameters
@@ -268,7 +236,7 @@ def load_data(path_a, path_b, set_type, batch_size, shuffle=True, sample_size=50
         Whether to shuffle the resulting dataset.
     sample_size : int
         If not-null, use only the defined number of samples from each of the datasets.
-        This is useful for testing runs. 
+        This is useful for testing runs.
 
     Returns
     -------
