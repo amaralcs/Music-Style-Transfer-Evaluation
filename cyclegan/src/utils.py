@@ -9,6 +9,7 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.train import Checkpoint, CheckpointManager
 from tensorflow.keras.layers import Layer, Input, Conv2D, Lambda, ReLU
+from tensorflow.data import Dataset
 
 
 logger = logging.getLogger("utils_logger")
@@ -187,7 +188,7 @@ def load_np_phrases(path, sample_size, set_type="train"):
 
 
 def join_datasets(
-    dataset_a, dataset_b, batch_size=16, shuffle=True, shuffle_buffer=50_000
+    dataset_a, dataset_b, batch_size=16, shuffle=False, shuffle_buffer=50_000
 ):
     """Joins two given datasets to create inputs of the form ((a1, b1), (a2, b2), ...)
 
@@ -219,7 +220,30 @@ def join_datasets(
     return ds.batch(batch_size).prefetch(1)
 
 
-def load_data(path_a, path_b, set_type, batch_size, shuffle=True, sample_size=500):
+def parse_tfr_array(array):
+    array_description = {"array": tf.io.FixedLenFeature([], tf.string)}
+    logger.info(array)
+    parsed_array = tf.io.parse_single_example(array, array_description)
+    tensor = tf.io.parse_tensor(parsed_array["array"], out_type=tf.float32)
+    logger.info(f"Parsed tensor: {tensor}")
+    return Dataset.from_tensor_slices(tensor)
+
+
+def load_tfrecords(path, set_type):
+    logger.info(f"Loading {set_type} tfrecords from {path}")
+    return (
+        tf.data.TFRecordDataset.list_files(
+            os.path.join(path, set_type, "*.tfrecord")
+        )  # returns a dataset
+        .interleave(
+            parse_tfr_array,
+            cycle_length=50,
+        )
+        .shuffle(15_000)
+    )
+
+
+def load_data(path_a, path_b, set_type, batch_size, shuffle=False, sample_size=500):
     """Helper function for loading the numpy phrases and converting them into a tensorflow dataset
 
     Parameters
@@ -242,9 +266,14 @@ def load_data(path_a, path_b, set_type, batch_size, shuffle=True, sample_size=50
     -------
     tf.data.Dataset
     """
-    X_a_train = load_np_phrases(path_a, sample_size, set_type)
-    dataset_a = create_dataset(X_a_train)
-    X_b_train = load_np_phrases(path_b, sample_size, set_type)
-    dataset_b = create_dataset(X_b_train)
+    dataset_a = load_tfrecords(path_a, set_type)
+    dataset_b = load_tfrecords(path_b, set_type)
+    print(type(dataset_a))
+    # X_a_train = load_np_phrases(path_a, sample_size, set_type)
+    # dataset_a = create_dataset(X_a_train)
+    # X_b_train = load_np_phrases(path_b, sample_size, set_type)
+    # dataset_b = create_dataset(X_b_train)
+    # dataset_a = load_file_dataset(path_a)
+    # dataset_b = load_file_dataset(path_b)
 
     return join_datasets(dataset_a, dataset_b, batch_size, shuffle=shuffle)
