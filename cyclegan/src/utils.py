@@ -1,10 +1,7 @@
 import os
 import logging
-from re import T
 import numpy as np
 from glob import glob
-from datetime import datetime
-from functools import reduce
 
 import tensorflow as tf
 from tensorflow import keras
@@ -123,6 +120,20 @@ class ResNetBlock(Layer):
         X = self.conv2d_2(X)
         X = self.instance_norm(X)
         return self.activation(X + inputs)
+
+    def get_config(self):
+        config = super(ResNetBlock, self).get_config()
+        config.update(
+            {
+                "n_units": self.n_units,
+                "kernel_size": self.kernel_size,
+                "kernel_initializer": self.kernel_initializer,
+                "strides": self.strides,
+                "pad_size": self.pad_size,
+                "padding": self.padding,
+                "activation": tf.keras.activations.serialize(self.activation),
+            }
+        )
 
 
 def input_padding(X, pad_size=3):
