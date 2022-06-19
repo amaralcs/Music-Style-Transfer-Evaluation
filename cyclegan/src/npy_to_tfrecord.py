@@ -6,10 +6,25 @@ import tensorflow as tf
 from tensorflow.train import Feature, Features, Example, BytesList
 
 
+def _floats_feature(value):
+    return tf.train.Feature(float_list=tf.train.FloatList(value=value))
+
+
+def _bytes_feature(value):
+    """Returns a bytes_list from a string / byte."""
+    if isinstance(value, type(tf.constant(0))):
+        value = value.numpy()  # BytesList won't unpack a string from an EagerTensor.
+    return Feature(bytes_list=tf.train.BytesList(value=[value]))
+
+
 def np_to_tfrecord(array):
-    feature = {"array": Feature(bytes_list=BytesList(value=[array.numpy()]))}
+    tensor = tf.io.serialize_tensor(array)
+
+    feature = {"array": _bytes_feature(tensor)}
     features = Features(feature=feature)
-    return Example(features=features)
+    example = Example(features=features)
+    serialized_example = example.SerializeToString()
+    return serialized_example
 
 
 if __name__ == "__main__":
@@ -25,9 +40,10 @@ if __name__ == "__main__":
 
     for full_path in fnames:
         array = np.load(full_path).astype(np.float32)
-        serialized_array = tf.io.serialize_tensor(array)
-        record = np_to_tfrecord(serialized_array)
+        tensor = tf.io.serialize_tensor(array)
+
+        # record = np_to_tfrecord(serialized_array)
 
         fname = os.path.split(full_path)[-1].replace(".npy", ".tfrecord")
         with tf.io.TFRecordWriter(os.path.join(outpath, set_type, fname)) as writer:
-            writer.write(record.SerializeToString())
+            writer.write(tensor.numpy())
