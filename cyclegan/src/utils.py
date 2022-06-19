@@ -1,5 +1,6 @@
 import os
 import logging
+from re import T
 import numpy as np
 from glob import glob
 from datetime import datetime
@@ -232,11 +233,15 @@ def parse_tfr_tensor(tensor):
     -------
     tf.data.Dataset
     """
-    parsed_tensor = tf.io.parse_tensor(tensor, out_type=tf.float32)
-    return Dataset.from_tensor_slices(parsed_tensor)
+    tensor = tf.io.parse_tensor(tensor, out_type=tf.float32)
+
+    # Prevents dataset.from_tensor_slices from using the first dimension as the
+    # dataset dimension
+    tensor = tf.expand_dims(tensor, axis=0)
+    return Dataset.from_tensor_slices(tensor)
 
 
-def load_tfrecords(path, set_type):
+def load_tfrecords(path, set_type, cycle_length):
     """Loads data in the tfrecords format and converts it to a dataset.
 
     Parameters
@@ -254,11 +259,11 @@ def load_tfrecords(path, set_type):
     fnames = glob(os.path.join(path, set_type, "*.tfrecord"))
 
     dataset = tf.data.TFRecordDataset(fnames)
-    dataset = dataset.interleave(parse_tfr_tensor, cycle_length=50)
+    dataset = dataset.interleave(parse_tfr_tensor, cycle_length=cycle_length)
     return dataset
 
 
-def load_data(path_a, path_b, set_type, batch_size, shuffle=False, sample_size=500):
+def load_data(path_a, path_b, set_type, batch_size, shuffle=False, cycle_length=50):
     """Helper function for loading the numpy phrases and converting them into a tensorflow dataset
 
     Parameters
@@ -281,7 +286,6 @@ def load_data(path_a, path_b, set_type, batch_size, shuffle=False, sample_size=5
     -------
     tf.data.Dataset
     """
-    dataset_a = load_tfrecords(path_a, set_type)
-    dataset_b = load_tfrecords(path_b, set_type)
-
+    dataset_a = load_tfrecords(path_a, set_type, cycle_length=cycle_length)
+    dataset_b = load_tfrecords(path_b, set_type, cycle_length=cycle_length)
     return join_datasets(dataset_a, dataset_b, batch_size, shuffle=shuffle)
