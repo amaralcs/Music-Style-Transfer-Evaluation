@@ -18,8 +18,8 @@ logger.addHandler(logging.StreamHandler())
 class InstanceNorm(Layer):
     """Custom implementation of Layer Normalization"""
 
-    def __init__(self, epsilon=1e-5):
-        super(InstanceNorm, self).__init__()
+    def __init__(self, epsilon=1e-5, **kwargs):
+        super(InstanceNorm, self).__init__(**kwargs)
         self.epsilon = epsilon
 
     def build(self, input_shape):
@@ -42,6 +42,10 @@ class InstanceNorm(Layer):
         inv = tf.math.rsqrt(variance + self.epsilon)
         normalized = (inputs - mean) * inv
         return self.scale * normalized + self.offset
+
+    def get_config(self):
+        base_config = super(InstanceNorm, self).get_config()
+        return {**base_config, "epsilon": self.epsilon}
 
 
 class ResNetBlock(Layer):
@@ -85,7 +89,7 @@ class ResNetBlock(Layer):
             input_padding, arguments={"pad_size": self.pad_size}, name=f"padding_1"
         )
         self.conv2d_1 = Conv2D(
-            self.n_units,  # input_shape[-1], # TODO: Check whether to use this or `self.n_units`
+            self.n_units,
             kernel_size=self.kernel_size,
             strides=self.strides,
             padding=self.padding,
@@ -94,7 +98,7 @@ class ResNetBlock(Layer):
             name="conv2D_1",
         )
         self.conv2d_2 = Conv2D(
-            self.n_units,  # input_shape[-1], # TODO: Check whether to use this or `self.n_units`
+            self.n_units,
             kernel_size=self.kernel_size,
             strides=self.strides,
             padding=self.padding,
@@ -122,18 +126,59 @@ class ResNetBlock(Layer):
         return self.activation(X + inputs)
 
     def get_config(self):
-        config = super(ResNetBlock, self).get_config()
-        config.update(
-            {
-                "n_units": self.n_units,
-                "kernel_size": self.kernel_size,
-                "kernel_initializer": self.kernel_initializer,
-                "strides": self.strides,
-                "pad_size": self.pad_size,
-                "padding": self.padding,
-                "activation": tf.keras.activations.serialize(self.activation),
-            }
+        base_config = super(ResNetBlock, self).get_config()
+        return {
+            **base_config,
+            "n_units": self.n_units,
+            "kernel_size": self.kernel_size,
+            "kernel_initializer": self.kernel_initializer,
+            "strides": self.strides,
+            "pad_size": self.pad_size,
+            "padding": self.padding,
+            "activation": tf.keras.activations.serialize(self.activation),
+        }
+
+
+class Conv2DBlock(Layer):
+    def __init__(self, n_units, kernel_size, strides, padding, initializer, **kwargs):
+        super(Conv2DBlock, self).__init__(**kwargs)
+        self.n_units = n_units
+        self.kernel_size = kernel_size
+        self.strides = strides
+        self.padding = padding
+        self.initializer = initializer
+
+        self.conv2D = Conv2D(
+            self.n_units,
+            kernel_size=self.kenel_size,
+            strides=self.strides,
+            padding=self.padding,
+            kernel_initializer=self.initializer,
+            use_bias=False,
         )
+        self.instance_norm = InstanceNorm()
+        self.relu = ReLU()
+
+    def call(self, inputs):
+        X = inputs
+        X = self.conv2D(X)
+        X = self.instance_norm(X)
+        X = self.relu(X)
+        return X
+
+    def get_config(self):
+        base_config = super().get_config()
+        return {
+            **base_config,
+            "n_units": self.n_units,
+            "kernel_size": self.kernel_size,
+            "strides": self.strides,
+            "padding": self.padding,
+            "initializer": self.initializer,
+            "conv2D": self.conv2D,
+            "instance_norm": self.instance_norm,
+            "relu": self.relu,
+        }
 
 
 def input_padding(X, pad_size=3):
