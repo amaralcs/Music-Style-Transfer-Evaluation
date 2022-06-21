@@ -1,4 +1,5 @@
 # Initial setup to be able to load `src.cyclegan`
+from imp import new_module
 import os
 import time
 from datetime import datetime
@@ -80,10 +81,10 @@ def get_run_logdir(root_logdir, genre_a, genre_b, epochs, batch_size):
 
 if __name__ == "__main__":
     # Set training configuration, load data
-    path_a = "processed_midi/phrases/jazz"
-    path_b = "processed_midi/phrases/pop"
-    genre_a = path_a.split("/")[-1]
-    genre_b = path_b.split("/")[-1]
+    path_a = "data/JC_C_cp/tfrecord"
+    path_b = "data/JC_J_cp/tfrecord"
+    genre_a = "classic"
+    genre_b = "jazz"
 
     model_output = "trained_models"
     os.makedirs(model_output, exist_ok=True)
@@ -93,24 +94,38 @@ if __name__ == "__main__":
     lr = 0.0002
     beta_1 = 0.5
     optimizer_params = dict(learning_rate=lr, beta_1=beta_1)
-    batch_size = 24
+    batch_size = 16
     epochs = 1
-    step = 2
+    step = 3
 
-    dataset = load_data(path_a, path_b, "train", batch_size=batch_size, sample_size=10)
+    dataset = load_data(
+        path_a, path_b, "train", batch_size=batch_size, cycle_length=500
+    )
+
+    # print("showing example")
+    # for (a, b) in dataset.take(1):
+    #     print(a.shape, b.shape)
 
     # Setup monitoring and callbacks
     run_logdir, model_info = get_run_logdir(
         log_dir, genre_a, genre_b, epochs, batch_size
     )
-    file_writer = tf.summary.create_file_writer(run_logdir + "/metrics")
-    file_writer.set_as_default()
-    lr_function = lr_function_wrapper(lr, epochs, step)
-    callbacks = [LearningRateScheduler(lr_function), TensorBoard(log_dir=run_logdir)]
+    # file_writer = tf.summary.create_file_writer(run_logdir + "/metrics")
+    # file_writer.set_as_default()
+    # lr_function = lr_function_wrapper(lr, epochs, step)
+    # callbacks = [LearningRateScheduler(lr_function), TensorBoard(log_dir=run_logdir)]
+    callbacks = None
 
     # Setup model
     model = CycleGAN(genre_a, genre_b)
     model.build_model(default_init=optimizer_params)
 
     model.fit(dataset, epochs=epochs, callbacks=callbacks)
-    model.save_weights(f"{model_output}/{model_info}/weights")
+
+    model.save_weights(f"{model_output}/{model_info}/weights/")
+
+    new_model = CycleGAN(genre_a, genre_b)
+    new_model.load_weights(f"{model_output}/{model_info}/weights/")
+
+    dummy_out = new_model(list(dataset.take(1))[0])
+    print("Dummy output shape", dummy_out.shape)
