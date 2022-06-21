@@ -384,10 +384,10 @@ class CycleGAN(Model):
             g_loss = g_A2B_loss + g_B2A_loss - cycle_loss
 
         # generator gradients
-        g_A2B_gradients = g_tape.gradient(
+        g_A2B_gradients = tape.gradient(
             g_A2B_loss, self.generator_A2B.trainable_variables
         )
-        g_B2A_gradients = g_tape.gradient(
+        g_B2A_gradients = tape.gradient(
             g_B2A_loss, self.generator_B2A.trainable_variables
         )
         self.g_A2B_opt.apply_gradients(
@@ -398,10 +398,10 @@ class CycleGAN(Model):
         )
 
         # discriminator gradients
-        d_A_gradients = d_tape.gradient(
+        d_A_gradients = tape.gradient(
             d_A_loss, self.discriminator_A.trainable_variables
         )
-        d_B_gradients = d_tape.gradient(
+        d_B_gradients = tape.gradient(
             d_B_loss, self.discriminator_B.trainable_variables
         )
         self.d_A_opt.apply_gradients(

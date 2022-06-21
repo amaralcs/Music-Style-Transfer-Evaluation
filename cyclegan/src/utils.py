@@ -5,8 +5,7 @@ from glob import glob
 
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.train import Checkpoint, CheckpointManager
-from tensorflow.keras.layers import Layer, Input, Conv2D, Lambda, ReLU
+from tensorflow.keras.layers import Layer, Input, Conv2D, Lambda, ReLU, Conv2DTranspose
 from tensorflow.data import Dataset
 
 
@@ -140,20 +139,22 @@ class ResNetBlock(Layer):
 
 
 class Conv2DBlock(Layer):
-    def __init__(self, n_units, kernel_size, strides, padding, initializer, **kwargs):
+    def __init__(
+        self, n_units, kernel_size, strides, padding, kernel_initializer, **kwargs
+    ):
         super(Conv2DBlock, self).__init__(**kwargs)
         self.n_units = n_units
         self.kernel_size = kernel_size
         self.strides = strides
         self.padding = padding
-        self.initializer = initializer
+        self.kernel_initializer = kernel_initializer
 
         self.conv2D = Conv2D(
             self.n_units,
-            kernel_size=self.kenel_size,
+            kernel_size=self.kernel_size,
             strides=self.strides,
             padding=self.padding,
-            kernel_initializer=self.initializer,
+            kernel_initializer=self.kernel_initializer,
             use_bias=False,
         )
         self.instance_norm = InstanceNorm()
@@ -174,25 +175,27 @@ class Conv2DBlock(Layer):
             "kernel_size": self.kernel_size,
             "strides": self.strides,
             "padding": self.padding,
-            "initializer": self.initializer,
+            "kernel_initializer": self.kernel_initializer,
         }
 
 
 class Deconv2DBlock(Layer):
-    def __init__(self, n_units, kernel_size, strides, padding, initializer, **kwargs):
+    def __init__(
+        self, n_units, kernel_size, strides, padding, kernel_initializer, **kwargs
+    ):
         super(Deconv2DBlock, self).__init__(**kwargs)
         self.n_units = n_units
         self.kernel_size = kernel_size
         self.strides = strides
         self.padding = padding
-        self.initializer = initializer
+        self.kernel_initializer = kernel_initializer
 
         self.deconv2D = Conv2DTranspose(
             self.n_units,
-            kernel_size=self.kenel_size,
+            kernel_size=self.kernel_size,
             strides=self.strides,
             padding=self.padding,
-            kernel_initializer=self.initializer,
+            kernel_initializer=self.kernel_initializer,
             use_bias=False,
         )
         self.instance_norm = InstanceNorm()
@@ -213,7 +216,7 @@ class Deconv2DBlock(Layer):
             "kernel_size": self.kernel_size,
             "strides": self.strides,
             "padding": self.padding,
-            "initializer": self.initializer,
+            "kernel_initializer": self.kernel_initializer,
         }
 
 
