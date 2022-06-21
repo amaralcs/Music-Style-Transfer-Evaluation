@@ -2,16 +2,9 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.layers import (
-    Conv2D,
-    Conv2DTranspose,
-    Input,
-    Lambda,
-    LeakyReLU,
-    ReLU,
-)
+from tensorflow.keras.layers import Conv2D, Input, Lambda, LeakyReLU
 
-from utils import InstanceNorm, ResNetBlock, input_padding
+from utils import Conv2DBlock, Deconv2DBlock, ResNetBlock, input_padding
 
 
 class CycleGAN(Model):
@@ -45,7 +38,7 @@ class CycleGAN(Model):
         self.checkpoint_dir = checkpoint_dir
         self.samples_dir = samples_dir
 
-        self.model = self.build_model()
+        self.build_model()
 
     def build_model(
         self,
@@ -78,11 +71,11 @@ class CycleGAN(Model):
         self.d_A_opt, self.d_B_opt = d_optimizers
         self.g_A2B_opt, self.g_B2A_opt = g_optimizers
 
-        self.discriminator_A = self.build_discriminator("discriminator_A", self.d_A_opt)
-        self.discriminator_B = self.build_discriminator("discriminator_B", self.d_B_opt)
+        self.discriminator_A = self.build_discriminator("discriminator_A")
+        self.discriminator_B = self.build_discriminator("discriminator_B")
 
-        self.generator_A2B = self.build_generator("generator_A2B", self.g_A2B_opt)
-        self.generator_B2A = self.build_generator("generator_B2A", self.g_B2A_opt)
+        self.generator_A2B = self.build_generator("generator_A2B")
+        self.generator_B2A = self.build_generator("generator_B2A")
 
         super(CycleGAN, self).compile()
 
@@ -103,9 +96,14 @@ class CycleGAN(Model):
             "initializer": self.initializer,
             "checkpoint_dir": self.checkpoint_dir,
             "samples_dir": self.samples_dir,
+            "d_loss_generated": self.d_loss_generated,
+            "d_loss_real": self.d_loss_real,
+            "d_loss_single": self.d_loss_single,
+            "cycle_loss": self.cycle_loss,
+            "g_loss_single": self.f_loss_single,
         }
 
-    def d_loss_fake(self, y_preds):
+    def d_loss_generated(self, y_preds):
         """Calculates the MSE between y_preds and a tensor of zeros of shape y_preds.shape
 
         Parameters
@@ -133,23 +131,25 @@ class CycleGAN(Model):
         y_true = tf.ones_like(y_preds)
         return tf.reduce_mean(tf.square(y_true - y_preds))
 
-    def d_loss_single(self, y_true, y_fake):
+    def d_loss_single(self, y_true, y_generated):
         """The overall loss for a single discriminator
 
         Parameters
         ----------
         y_true : tf.tensor
-        y_preds : tf.tensor
+            Logits of the discriminator after receiving a true sample.
+        y_generated : tf.tensor
+            Logits of the discriminator after receiving a generated sample.
 
         Returns
         -------
             Tensor with the discriminator loss.
         """
-        loss_fake = self.d_loss_fake(y_fake)
+        loss_generated = self.d_loss_generated(y_generated)
         loss_real = self.d_loss_real(y_true)
-        return (loss_fake + loss_real) / 2
+        return (loss_generated + loss_real) / 2
 
-    def build_discriminator(self, name, optimizer):
+    def build_discriminator(self, name):
         """Builds CycleGAN discriminator
 
         Returns
@@ -191,8 +191,6 @@ class CycleGAN(Model):
             name="conv2D_3",
         )(X)
         discriminator = Model(inputs=inputs, outputs=outputs, name=name)
-        discriminator.add_loss([self.d_loss_real, self.d_loss_fake, self.d_loss_single])
-        discriminator.compile(optimizer=optimizer)
         return discriminator
 
     def cycle_loss(self, y_true, y_preds):
@@ -244,7 +242,7 @@ class CycleGAN(Model):
         """
         return cycle_loss + tf.reduce_mean(tf.square(y_true - tf.ones_like(y_true)))
 
-    def build_generator(self, name, optimizer):
+    def build_generator(self, name):
         """Builds CycleGAN generator
 
         Returns
@@ -257,46 +255,55 @@ class CycleGAN(Model):
         X = inputs
         X = Lambda(input_padding, name="padding_1")(X)
 
-        # values for the first 3 layers
-        # [mult, kernel_size, strides, padding]
-        layer_params = [
-            [1, 7, 1, "valid"],
-            [2, 3, 2, "same"],
-            [4, 3, 2, "same"],
-        ]
-
-        for idx, [mult, kernel_size, strides, padding] in enumerate(layer_params):
-            X = Conv2D(
-                self.n_units_generator * mult,
-                kernel_size=kernel_size,
-                strides=strides,
-                padding=padding,
-                kernel_initializer=self.initializer,
-                use_bias=False,
-                name=f"conv2D_{idx}",
-            )(X)
-            X = InstanceNorm()(X)
-            X = ReLU()(X)
+        X = Conv2DBlock(
+            self.n_units_generator,
+            kernel_size=7,
+            strides=1,
+            padding="valid",
+            kernel_initializer=self.initializer,
+            name="conv2D_1",
+        )(X)
+        X = Conv2DBlock(
+            self.n_units_generator * 2,
+            kernel_size=3,
+            strides=2,
+            padding="same",
+            kernel_initializer=self.initializer,
+            name="conv2D_2",
+        )(X)
+        X = Conv2DBlock(
+            self.n_units_generator * 4,
+            kernel_size=3,
+            strides=2,
+            padding="same",
+            kernel_initializer=self.initializer,
+            name="conv2D_3",
+        )(X)
 
         for _ in range(10):
             X = ResNetBlock(
                 self.n_units_generator * 4, kernel_initializer=self.initializer
             )(X)
 
-        for mult, idx in zip(range(2, 0, -1), range(1, 3)):
-            X = Conv2DTranspose(
-                self.n_units_generator * mult,
-                kernel_size=3,
-                strides=2,
-                padding="same",
-                kernel_initializer=self.initializer,
-                use_bias=False,
-                name=f"deconv2D_{idx}",
-            )(X)
-            X = InstanceNorm()(X)
-            X = ReLU()(X)
+        X = Deconv2DBlock(
+            self.n_units_generator * 2,
+            kernel_size=3,
+            strides=2,
+            padding="same",
+            kernel_initializer=self.initializer,
+            name=f"deconv2D_1",
+        )(X)
+        X = Deconv2DBlock(
+            self.n_units_generator,
+            kernel_size=3,
+            strides=2,
+            padding="same",
+            kernel_initializer=self.initializer,
+            name=f"deconv2D_2",
+        )(X)
 
         X = Lambda(input_padding, name="padding_2")(X)
+
         outputs = Conv2D(
             1,
             kernel_size=7,
@@ -308,8 +315,6 @@ class CycleGAN(Model):
             name="conv2D_4",
         )(X)
         generator = Model(inputs=inputs, outputs=outputs, name=name)
-        generator.add_loss([self.cycle_loss, self.g_loss_single])
-        generator.compile(optimizer=optimizer)
         return generator
 
     def gaussian_noise(self):
@@ -347,9 +352,7 @@ class CycleGAN(Model):
 
         noise = self.gaussian_noise()
 
-        with tf.GradientTape(persistent=True) as g_tape, tf.GradientTape(
-            persistent=True
-        ) as d_tape:
+        with tf.GradientTape(persistent=True) as tape:
             # X_a in the style of X_b
             X_a_transfer = self.generator_A2B(X_a, training=True)
             X_a_cycle = self.generator_B2A(X_a_transfer, training=True)
@@ -359,22 +362,26 @@ class CycleGAN(Model):
             )  # X_b in the style of X_a
             X_b_cycle = self.generator_A2B(X_b_transfer, training=True)
 
-            # generator losses
-            cycle_loss = self.cycle_loss((X_a, X_b), (X_a_cycle, X_b_cycle))
-            g_A2B_loss = self.g_loss_single(X_a_transfer, cycle_loss)
-            g_B2A_loss = self.g_loss_single(X_b_transfer, cycle_loss)
-            g_loss = g_A2B_loss + g_B2A_loss - cycle_loss
-
             # discriminator evaluation
             d_a_real_logits = self.discriminator_A(X_a + noise, training=True)
-            d_a_fake_logits = self.discriminator_A(X_b_transfer + noise, training=True)
+            d_a_generated_logits = self.discriminator_A(
+                X_b_transfer + noise, training=True
+            )
 
             d_b_real_logits = self.discriminator_B(X_b + noise, training=True)
-            d_b_fake_logits = self.discriminator_B(X_a_transfer + noise, training=True)
+            d_b_generated_logits = self.discriminator_B(
+                X_a_transfer + noise, training=True
+            )
 
             # discriminator losses
-            d_A_loss = self.d_loss_single(d_a_real_logits, d_a_fake_logits)
-            d_B_loss = self.d_loss_single(d_b_real_logits, d_b_fake_logits)
+            d_A_loss = self.d_loss_single(d_a_real_logits, d_a_generated_logits)
+            d_B_loss = self.d_loss_single(d_b_real_logits, d_b_generated_logits)
+
+            # generator losses
+            cycle_loss = self.cycle_loss((X_a, X_b), (X_a_cycle, X_b_cycle))
+            g_A2B_loss = self.g_loss_single(d_a_real_logits, cycle_loss)
+            g_B2A_loss = self.g_loss_single(d_b_real_logits, cycle_loss)
+            g_loss = g_A2B_loss + g_B2A_loss - cycle_loss
 
         # generator gradients
         g_A2B_gradients = g_tape.gradient(
