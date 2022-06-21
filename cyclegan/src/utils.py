@@ -175,9 +175,45 @@ class Conv2DBlock(Layer):
             "strides": self.strides,
             "padding": self.padding,
             "initializer": self.initializer,
-            "conv2D": self.conv2D,
-            "instance_norm": self.instance_norm,
-            "relu": self.relu,
+        }
+
+
+class Deconv2DBlock(Layer):
+    def __init__(self, n_units, kernel_size, strides, padding, initializer, **kwargs):
+        super(Deconv2DBlock, self).__init__(**kwargs)
+        self.n_units = n_units
+        self.kernel_size = kernel_size
+        self.strides = strides
+        self.padding = padding
+        self.initializer = initializer
+
+        self.deconv2D = Conv2DTranspose(
+            self.n_units,
+            kernel_size=self.kenel_size,
+            strides=self.strides,
+            padding=self.padding,
+            kernel_initializer=self.initializer,
+            use_bias=False,
+        )
+        self.instance_norm = InstanceNorm()
+        self.relu = ReLU()
+
+    def call(self, inputs):
+        X = inputs
+        X = self.deconv2D(X)
+        X = self.instance_norm(X)
+        X = self.relu(X)
+        return X
+
+    def get_config(self):
+        base_config = super().get_config()
+        return {
+            **base_config,
+            "n_units": self.n_units,
+            "kernel_size": self.kernel_size,
+            "strides": self.strides,
+            "padding": self.padding,
+            "initializer": self.initializer,
         }
 
 
