@@ -8,6 +8,8 @@ from tensorflow import keras
 from tensorflow.keras.layers import Layer, Input, Conv2D, Lambda, ReLU, Conv2DTranspose
 from tensorflow.data import Dataset
 
+import write_midi
+
 
 logger = logging.getLogger("utils_logger")
 logger.setLevel(logging.INFO)
@@ -240,49 +242,6 @@ def input_padding(X, pad_size=3):
     )
 
 
-def create_dataset(tensor_list):
-    """Converts the a list of numpy arrays into a tensorflow dataset.
-
-    Parameters
-    ----------
-    songs : List
-        List of numpy arrays. That is, the piano roll representations of songs/chromas
-
-    Returns
-    -------
-    tf.data.Dataset
-    """
-    logger.info("Creating TF dataset from the loaded phrases")
-    datasets = [tf.data.Dataset.from_tensors(tensor) for tensor in tensor_list]
-    return reduce(lambda ds1, ds2: ds1.concatenate(ds2), datasets)
-
-
-def load_np_phrases(path, sample_size, set_type="train"):
-    """Loads the preprocessed numpy phrases from a given path.
-
-    Parameters
-    ----------
-    path : str
-        Path to the prepared phrases.
-    set_type: str, Optional
-        Whether to load from train/test folder.
-
-    Returns
-    -------
-    Lis[np.array]
-    """
-    logger.info(f"Loading {set_type} phrases from {path}")
-    fnames = glob(os.path.join(path, set_type, "*.*"))
-    if len(fnames) == 0:
-        logger.error(
-            f"There was an error loading data from {path}: Are you sure the path is correct?",
-            f" The current working directory is {os.getcwd()}",
-        )
-    if sample_size:
-        fnames = fnames[:sample_size]
-    return [np.load(fname).astype(np.float32) for fname in fnames]
-
-
 def join_datasets(
     dataset_a, dataset_b, batch_size=16, shuffle=False, shuffle_buffer=15_000
 ):
@@ -384,3 +343,38 @@ def load_data(path_a, path_b, set_type, batch_size=16, shuffle=False, cycle_leng
     dataset_a = load_tfrecords(path_a, set_type, cycle_length=cycle_length)
     dataset_b = load_tfrecords(path_b, set_type, cycle_length=cycle_length)
     return join_datasets(dataset_a, dataset_b, batch_size, shuffle=shuffle)
+
+
+def save_midis(bars, file_path, tempo=80.0):
+    # Pad the input bars so that they're in the MIDI range (0-128) rather than 0-84
+    padded_bars = np.concatenate(
+        (
+            np.zeros((bars.shape[0], bars.shape[1], 24, bars.shape[3])),
+            bars,
+            np.zeros((bars.shape[0], bars.shape[1], 20, bars.shape[3])),
+        ),
+        axis=2,
+    )
+    padded_bars = padded_bars.reshape(
+        -1, 64, padded_bars.shape[2], padded_bars.shape[3]
+    )
+    padded_bars_list = []
+    for ch_idx in range(padded_bars.shape[3]):
+        padded_bars_list.append(
+            padded_bars[:, :, :, ch_idx].reshape(
+                padded_bars.shape[0], padded_bars.shape[1], padded_bars.shape[2]
+            )
+        )
+    # this is for multi-track version
+    # write_midi.write_piano_rolls_to_midi(padded_bars_list, program_nums=[33, 0, 25, 49, 0],
+    #                                      is_drum=[False, True, False, False, False], filename=file_path, tempo=80.0)
+
+    # this is for single-track version
+    write_midi.write_piano_rolls_to_midi(
+        piano_rolls=padded_bars_list,
+        program_nums=[0],
+        is_drum=[False],
+        filename=file_path,
+        tempo=tempo,
+        beat_resolution=4,
+    )

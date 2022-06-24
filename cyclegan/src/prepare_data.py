@@ -7,11 +7,12 @@
         - Limiting tracks to a specified range of notes
         - Train/test split
         - Splitting tracks to individual phrases
+        - Saving phrases as tfrecord tensors
 
     Usage
     -----
     python src/prepare.py new_dataset pop \
-        --outpath phrases
+        --outpath tfrecord
             
     Note
     ----
@@ -23,14 +24,14 @@ import logging
 import os
 import errno
 import sys
-from argparse import ArgumentParser
 import numpy as np
+from argparse import ArgumentParser
+
+from tensorflow.io import serialize_tensor, TFRecordWriter
 
 from pypianoroll import Multitrack, Track, from_pretty_midi
 import pretty_midi
 
-import write_midi as wm
-from tf2_utils import save_midis
 
 logger = logging.getLogger("preprocessing_logger")
 logger.setLevel(logging.INFO)
@@ -60,7 +61,10 @@ def parse_args(argv):
         "genre", default="pop", type=str, help="Genre of the midis being processes."
     )
     args.add_argument(
-        "--outpath", default="phrases", type=str, help="Name of directory with outputs."
+        "--outpath",
+        default="tfrecord",
+        type=str,
+        help="Name of directory with outputs.",
     )
     args.add_argument(
         "--test-ratio",
@@ -93,7 +97,7 @@ def parse_args(argv):
         help=(
             "If set to true, only keep tracks that have 4 bars or keep a single phrase of "
             "tracks that do not have number of tracks a multiple of 4."
-        )
+        ),
     )
     return args.parse_args(argv)
 
@@ -288,6 +292,7 @@ def filter_track(
             return True
     return False
 
+
 def convert_and_clean_midis(midi_fpath, **filter_kwargs):
     """Loads the midis selected in the first step and converts them to pypianoroll.Multitrack and filters
     based on the given rules.
@@ -316,7 +321,6 @@ def convert_and_clean_midis(midi_fpath, **filter_kwargs):
     midi_paths = get_midi_path(midi_fpath)
     logger.info(f"Found {len(midi_paths)} midi files")
 
-    track_metadata = {}
     midi_tracks = [create_multitracks(midi_path) for midi_path in midi_paths]
 
     filtered_tracks = []
@@ -411,46 +415,11 @@ def trim_midi_files(multitracks, clip_range=(24, 108), drop_phrases=True):
             # Reshaped into (batchsize, 64, clipped_range, 1)
             shaped_multitrack = shaped_multitrack.reshape(-1, 64, 84, 1)
 
-            # # TODO: I'm not sure I need the processing that's happening inside `save_midis`
-            # save_midis(
-            #     shaped_multitrack,
-            #     os.path.join(root_path, midi_outpath, track_name + ".midi"),
-            # )
             trimmed_midis.append(shaped_multitrack)
         except Exception as err:
             raise err
     logger.info("[Done]")
     return trimmed_midis
-
-
-def save_phrases(trimmed_midis, dataset, outpath, genre, remove_velocity=True):
-    """Saves the processed midis as a number of npy arrays to the target path.
-
-    Parameters
-    ----------
-    trimmed_midis : List[np.array]
-        List of midi files to save.
-    dataset : str
-        Name of dataset to save (train or test)
-    outpath : str
-        Location to save the phrases.
-    remove_velocity : Boolean, Optional
-        Whether to remove velocity information from the outputs.
-    """
-
-    outpath = os.path.join(outpath, genre, dataset)
-    make_sure_path_exists(outpath)
-
-    concat_midis = np.concatenate(trimmed_midis, axis=0)
-
-    # Convert to an array of booleans if we want to omit velocity
-    if remove_velocity:
-        concat_midis = concat_midis > 0
-
-    logger.info(f"Saving phrases to {outpath}")
-    for idx, phrase in enumerate(concat_midis):
-        np.save(os.path.join(outpath, f"{genre}_{idx+1}"), phrase)
-    logger.info(f"[Done]")
 
 
 def train_test_split(tracks, test_ratio):
@@ -489,10 +458,48 @@ def train_test_split(tracks, test_ratio):
     return train_set, test_set
 
 
+def save(trimmed_midis, dataset, outpath, genre, remove_velocity):
+    """Saves the processed midis as tfrecords.
 
-def main(argv): 
-    """Main function to run the job.
+    Parameters
+    ----------
+    trimmed_midis : List[np.array]
+        List of midi files to convert.
+    dataset : str
+        Name of dataset to save (train or test)
+    outpath : str
+        Location to save the phrases.
+    genre : str
+        The name of the genre.
+    remove_velocity : Boolean, Optional
+        Whether to remove velocity information from the outputs.
     """
+    outpath = os.path.join(outpath, genre, dataset)
+    os.makedirs(outpath, exist_ok=True)
+
+    # Aggregate all np arrays into a single array for ease of handling
+    concat_midis = np.concatenate(trimmed_midis, axis=0)
+
+    # Convert to an array of booleans if we want to omit velocity
+    if remove_velocity:
+        concat_midis = concat_midis > 0
+
+    concat_midis = concat_midis.astype(np.float32)
+
+    logger.info(f"Saving phrases to {outpath}")
+    for idx, np_arr in enumerate(concat_midis):
+        fname = os.path.join(outpath, f"{genre}_{idx+1}.tfrecord")
+
+        tensor = serialize_tensor(np_arr)
+
+        with TFRecordWriter(fname) as writer:
+            writer.write(tensor.numpy())
+
+    logger.info(f"[Done]")
+
+
+def main(argv):
+    """Main function to run the job."""
     args = parse_args(argv)
     root_path = args.root_path
     outpath = args.outpath
@@ -504,12 +511,15 @@ def main(argv):
 
     midi_fpaths = os.path.join(root_path, genre)
     tracks = convert_and_clean_midis(midi_fpaths)
-    trimmed_tracks = trim_midi_files(tracks, clip_range=clip_range, drop_phrases=drop_phrases)
+    trimmed_tracks = trim_midi_files(
+        tracks, clip_range=clip_range, drop_phrases=drop_phrases
+    )
     train_set, test_set = train_test_split(tracks=trimmed_tracks, test_ratio=test_ratio)
 
     outpath = os.path.join(root_path, outpath)
-    save_phrases(train_set, "train", outpath, genre, remove_velocity)
-    save_phrases(test_set, "test", outpath, genre, remove_velocity)
+
+    save(train_set, "train", outpath, genre, remove_velocity)
+    save(test_set, "test", outpath, genre, remove_velocity)
 
 
 if __name__ == "__main__":
