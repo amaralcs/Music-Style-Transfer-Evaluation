@@ -240,49 +240,6 @@ def input_padding(X, pad_size=3):
     )
 
 
-def create_dataset(tensor_list):
-    """Converts the a list of numpy arrays into a tensorflow dataset.
-
-    Parameters
-    ----------
-    songs : List
-        List of numpy arrays. That is, the piano roll representations of songs/chromas
-
-    Returns
-    -------
-    tf.data.Dataset
-    """
-    logger.info("Creating TF dataset from the loaded phrases")
-    datasets = [tf.data.Dataset.from_tensors(tensor) for tensor in tensor_list]
-    return reduce(lambda ds1, ds2: ds1.concatenate(ds2), datasets)
-
-
-def load_np_phrases(path, sample_size, set_type="train"):
-    """Loads the preprocessed numpy phrases from a given path.
-
-    Parameters
-    ----------
-    path : str
-        Path to the prepared phrases.
-    set_type: str, Optional
-        Whether to load from train/test folder.
-
-    Returns
-    -------
-    Lis[np.array]
-    """
-    logger.info(f"Loading {set_type} phrases from {path}")
-    fnames = glob(os.path.join(path, set_type, "*.*"))
-    if len(fnames) == 0:
-        logger.error(
-            f"There was an error loading data from {path}: Are you sure the path is correct?",
-            f" The current working directory is {os.getcwd()}",
-        )
-    if sample_size:
-        fnames = fnames[:sample_size]
-    return [np.load(fname).astype(np.float32) for fname in fnames]
-
-
 def join_datasets(
     dataset_a, dataset_b, batch_size=16, shuffle=False, shuffle_buffer=15_000
 ):
