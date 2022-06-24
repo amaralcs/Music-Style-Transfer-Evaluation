@@ -8,6 +8,8 @@ from tensorflow import keras
 from tensorflow.keras.layers import Layer, Input, Conv2D, Lambda, ReLU, Conv2DTranspose
 from tensorflow.data import Dataset
 
+import write_midi
+
 
 logger = logging.getLogger("utils_logger")
 logger.setLevel(logging.INFO)
@@ -341,3 +343,38 @@ def load_data(path_a, path_b, set_type, batch_size=16, shuffle=False, cycle_leng
     dataset_a = load_tfrecords(path_a, set_type, cycle_length=cycle_length)
     dataset_b = load_tfrecords(path_b, set_type, cycle_length=cycle_length)
     return join_datasets(dataset_a, dataset_b, batch_size, shuffle=shuffle)
+
+
+def save_midis(bars, file_path, tempo=80.0):
+    # Pad the input bars so that they're in the MIDI range (0-128) rather than 0-84
+    padded_bars = np.concatenate(
+        (
+            np.zeros((bars.shape[0], bars.shape[1], 24, bars.shape[3])),
+            bars,
+            np.zeros((bars.shape[0], bars.shape[1], 20, bars.shape[3])),
+        ),
+        axis=2,
+    )
+    padded_bars = padded_bars.reshape(
+        -1, 64, padded_bars.shape[2], padded_bars.shape[3]
+    )
+    padded_bars_list = []
+    for ch_idx in range(padded_bars.shape[3]):
+        padded_bars_list.append(
+            padded_bars[:, :, :, ch_idx].reshape(
+                padded_bars.shape[0], padded_bars.shape[1], padded_bars.shape[2]
+            )
+        )
+    # this is for multi-track version
+    # write_midi.write_piano_rolls_to_midi(padded_bars_list, program_nums=[33, 0, 25, 49, 0],
+    #                                      is_drum=[False, True, False, False, False], filename=file_path, tempo=80.0)
+
+    # this is for single-track version
+    write_midi.write_piano_rolls_to_midi(
+        piano_rolls=padded_bars_list,
+        program_nums=[0],
+        is_drum=[False],
+        filename=file_path,
+        tempo=tempo,
+        beat_resolution=4,
+    )
