@@ -419,6 +419,36 @@ class CycleGAN(Model):
             "cycle_loss": cycle_loss,
         }
 
-    def call(self, inputs):
+    def call(self, inputs, direction="A2B"):
+        """Converts the inputs to the trained style and generates the cyle back to the original style
+
+        Parameters
+        ----------
+        inputs : tf.data.Dataset
+            Datset with songs from the given genres.
+        direction : str
+            The direction of the transfer. One of "A2B" or "B2A".
+
+        Returns
+        -------
+        original : np.ndarray
+            A numpy array of shape (batch_size, n_timesteps, note_range, 1) with the original song.
+        transfer : np.ndarray
+            A numpy array of shape (batch_size, n_timesteps, note_range, 1) with the transferred song.
+        cycled : np.ndarray
+            A numpy array of shape (batch_size, n_timesteps, note_range, 1) with the cycled song.
+        """
         X_a, X_b = inputs
-        return self.generator_A2B(X_a)
+
+        if direction == "A2B":
+            original = X_a
+            transfer = self.generator_A2B(X_a)
+            cycle = self.generator_B2A(transfer)
+        elif direction == "A2B":
+            original = X_b
+            transfer = self.generator_B2A(X_b)
+            cycle = self.generator_B2A(transfer)
+        else:
+            raise Exception(f"Transfer direction '{direction}' not understood")
+
+        return original.numpy(), transfer.numpy(), cycle.numpy()
