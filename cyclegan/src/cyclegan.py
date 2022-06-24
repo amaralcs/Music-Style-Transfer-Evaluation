@@ -20,8 +20,6 @@ class CycleGAN(Model):
         gamma=1.0,
         sigma_d=0.01,
         initializer=tf.random_normal_initializer(0, 0.02),
-        checkpoint_dir="../checkpoint",
-        samples_dir="../samples",
         **kwargs,
     ):
         super(CycleGAN, self).__init__(**kwargs)
@@ -35,8 +33,6 @@ class CycleGAN(Model):
         self.gamma = gamma
         self.sigma_d = sigma_d
         self.initializer = initializer
-        self.checkpoint_dir = checkpoint_dir
-        self.samples_dir = samples_dir
 
         self.build_model()
 
@@ -94,8 +90,6 @@ class CycleGAN(Model):
             "gamma": self.gamma,
             "sigma_d": self.sigma_d,
             "initializer": self.initializer,
-            "checkpoint_dir": self.checkpoint_dir,
-            "samples_dir": self.samples_dir,
             "d_loss_generated": self.d_loss_generated,
             "d_loss_real": self.d_loss_real,
             "d_loss_single": self.d_loss_single,

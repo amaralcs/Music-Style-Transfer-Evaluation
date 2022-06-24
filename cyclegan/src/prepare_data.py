@@ -7,11 +7,12 @@
         - Limiting tracks to a specified range of notes
         - Train/test split
         - Splitting tracks to individual phrases
+        - Saving phrases as tfrecord tensors
 
     Usage
     -----
     python src/prepare.py new_dataset pop \
-        --outpath phrases
+        --outpath tfrecord
             
     Note
     ----
@@ -26,8 +27,7 @@ import sys
 import numpy as np
 from argparse import ArgumentParser
 
-import tensorflow as tf
-from tensorflow.train import Feature, Features, Example, BytesList
+from tensorflow.io import serialize_tensor, TFRecordWriter
 
 from pypianoroll import Multitrack, Track, from_pretty_midi
 import pretty_midi
@@ -490,9 +490,9 @@ def save(trimmed_midis, dataset, outpath, genre, remove_velocity):
     for idx, np_arr in enumerate(concat_midis):
         fname = os.path.join(outpath, f"{genre}_{idx+1}.tfrecord")
 
-        tensor = tf.io.serialize_tensor(np_arr)
+        tensor = serialize_tensor(np_arr)
 
-        with tf.io.TFRecordWriter(fname) as writer:
+        with TFRecordWriter(fname) as writer:
             writer.write(tensor.numpy())
 
     logger.info(f"[Done]")
