@@ -23,14 +23,15 @@ import logging
 import os
 import errno
 import sys
-from argparse import ArgumentParser
 import numpy as np
+from argparse import ArgumentParser
+
+import tensorflow as tf
+from tensorflow.train import Feature, Features, Example, BytesList
 
 from pypianoroll import Multitrack, Track, from_pretty_midi
 import pretty_midi
 
-import write_midi as wm
-from tf2_utils import save_midis
 
 logger = logging.getLogger("preprocessing_logger")
 logger.setLevel(logging.INFO)
@@ -93,7 +94,7 @@ def parse_args(argv):
         help=(
             "If set to true, only keep tracks that have 4 bars or keep a single phrase of "
             "tracks that do not have number of tracks a multiple of 4."
-        )
+        ),
     )
     return args.parse_args(argv)
 
@@ -288,6 +289,7 @@ def filter_track(
             return True
     return False
 
+
 def convert_and_clean_midis(midi_fpath, **filter_kwargs):
     """Loads the midis selected in the first step and converts them to pypianoroll.Multitrack and filters
     based on the given rules.
@@ -411,46 +413,11 @@ def trim_midi_files(multitracks, clip_range=(24, 108), drop_phrases=True):
             # Reshaped into (batchsize, 64, clipped_range, 1)
             shaped_multitrack = shaped_multitrack.reshape(-1, 64, 84, 1)
 
-            # # TODO: I'm not sure I need the processing that's happening inside `save_midis`
-            # save_midis(
-            #     shaped_multitrack,
-            #     os.path.join(root_path, midi_outpath, track_name + ".midi"),
-            # )
             trimmed_midis.append(shaped_multitrack)
         except Exception as err:
             raise err
     logger.info("[Done]")
     return trimmed_midis
-
-
-def save_phrases(trimmed_midis, dataset, outpath, genre, remove_velocity=True):
-    """Saves the processed midis as a number of npy arrays to the target path.
-
-    Parameters
-    ----------
-    trimmed_midis : List[np.array]
-        List of midi files to save.
-    dataset : str
-        Name of dataset to save (train or test)
-    outpath : str
-        Location to save the phrases.
-    remove_velocity : Boolean, Optional
-        Whether to remove velocity information from the outputs.
-    """
-
-    outpath = os.path.join(outpath, genre, dataset)
-    make_sure_path_exists(outpath)
-
-    concat_midis = np.concatenate(trimmed_midis, axis=0)
-
-    # Convert to an array of booleans if we want to omit velocity
-    if remove_velocity:
-        concat_midis = concat_midis > 0
-
-    logger.info(f"Saving phrases to {outpath}")
-    for idx, phrase in enumerate(concat_midis):
-        np.save(os.path.join(outpath, f"{genre}_{idx+1}"), phrase)
-    logger.info(f"[Done]")
 
 
 def train_test_split(tracks, test_ratio):
@@ -489,10 +456,72 @@ def train_test_split(tracks, test_ratio):
     return train_set, test_set
 
 
+def np_to_tfrecord(trimmed_midis, remove_velocity):
+    """Converts a list of numpy arrays to tfrecord format.
 
-def main(argv): 
-    """Main function to run the job.
+    Parameters
+    ----------
+    trimmed_midis : List[np.array]
+        List of midi files to convert.
+    remove_velocity : Boolean, Optional
+        Whether to remove velocity information from the outputs.
+
+    Returns
+    -------
+    A tensor of dtype string.
     """
+
+    def _bytes_feature(value):
+        """Returns a bytes_list from a string / byte."""
+        if isinstance(value, type(tf.constant(0))):
+            value = (
+                value.numpy()
+            )  # BytesList won't unpack a string from an EagerTensor.
+        return Feature(bytes_list=tf.train.BytesList(value=[value]))
+
+    concat_midis = np.concatenate(trimmed_midis, axis=0)
+
+    # Convert to an array of booleans if we want to omit velocity
+    if remove_velocity:
+        concat_midis = concat_midis > 0
+
+    tensor = tf.io.serialize_tensor(concat_midis)
+
+    feature = {"array": _bytes_feature(tensor)}
+    features = Features(feature=feature)
+    example = Example(features=features)
+    serialized_example = example.SerializeToString()
+    return serialized_example
+
+
+def save(records, dataset, outpath, genre):
+    """Saves the processed midis as tfrecords.
+
+    Parameters
+    ----------
+    records : List[tf.tensor]
+        List of midi files to save.
+    dataset : str
+        Name of dataset to save (train or test)
+    outpath : str
+        Location to save the phrases.
+    genre : str
+        The name of the genre.
+    """
+    outpath = os.path.join(outpath, genre, dataset)
+
+    logger.info(f"Saving phrases to {outpath}")
+    for idx, tensor in enumerate(records):
+        fname = os.path.join(outpath, f"{genre}_{idx+1}.tfrecord")
+
+        with tf.io.TFRecordWriter(fname) as writer:
+            writer.write(tensor.numpy())
+
+    logger.info(f"[Done]")
+
+
+def main(argv):
+    """Main function to run the job."""
     args = parse_args(argv)
     root_path = args.root_path
     outpath = args.outpath
@@ -504,12 +533,18 @@ def main(argv):
 
     midi_fpaths = os.path.join(root_path, genre)
     tracks = convert_and_clean_midis(midi_fpaths)
-    trimmed_tracks = trim_midi_files(tracks, clip_range=clip_range, drop_phrases=drop_phrases)
+    trimmed_tracks = trim_midi_files(
+        tracks, clip_range=clip_range, drop_phrases=drop_phrases
+    )
     train_set, test_set = train_test_split(tracks=trimmed_tracks, test_ratio=test_ratio)
 
     outpath = os.path.join(root_path, outpath)
-    save_phrases(train_set, "train", outpath, genre, remove_velocity)
-    save_phrases(test_set, "test", outpath, genre, remove_velocity)
+
+    train_set_tensors = np_to_tfrecord(train_set, remove_velocity)
+    save(train_set_tensors, "train", outpath, genre, remove_velocity)
+
+    test_set_tensors = np_to_tfrecord(test_set, remove_velocity)
+    save(test_set_tensors, "test", outpath, genre, remove_velocity)
 
 
 if __name__ == "__main__":
