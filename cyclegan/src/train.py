@@ -81,8 +81,10 @@ def get_run_logdir(root_logdir, genre_a, genre_b, epochs, batch_size):
 
 if __name__ == "__main__":
     # Set training configuration, load data
-    path_a = "data/JC_C_cp/tfrecord"
-    path_b = "data/JC_J_cp/tfrecord"
+    # path_a = "data/JC_C_cp/tfrecord" # dummy dir with less data
+    path_a = "data/JC_C/tfrecord"
+    # path_b = "data/JC_J_cp/tfrecord"
+    path_b = "data/JC_J/tfrecord"
     genre_a = "classic"
     genre_b = "jazz"
 
@@ -94,8 +96,8 @@ if __name__ == "__main__":
     lr = 0.0002
     beta_1 = 0.5
     optimizer_params = dict(learning_rate=lr, beta_1=beta_1)
-    batch_size = 16
-    epochs = 1
+    batch_size = 32
+    epochs = 15
     step = 3
 
     dataset = load_data(
@@ -110,10 +112,10 @@ if __name__ == "__main__":
     run_logdir, model_info = get_run_logdir(
         log_dir, genre_a, genre_b, epochs, batch_size
     )
-    # file_writer = tf.summary.create_file_writer(run_logdir + "/metrics")
-    # file_writer.set_as_default()
-    # lr_function = lr_function_wrapper(lr, epochs, step)
-    # callbacks = [LearningRateScheduler(lr_function), TensorBoard(log_dir=run_logdir)]
+    file_writer = tf.summary.create_file_writer(run_logdir + "/metrics")
+    file_writer.set_as_default()
+    lr_function = lr_function_wrapper(lr, epochs, step)
+    callbacks = [LearningRateScheduler(lr_function), TensorBoard(log_dir=run_logdir)]
     callbacks = None
 
     # Setup model

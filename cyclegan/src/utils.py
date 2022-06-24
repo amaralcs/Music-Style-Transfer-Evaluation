@@ -358,7 +358,7 @@ def load_tfrecords(path, set_type, cycle_length):
     return dataset
 
 
-def load_data(path_a, path_b, set_type, batch_size, shuffle=False, cycle_length=50):
+def load_data(path_a, path_b, set_type, batch_size=16, shuffle=False, cycle_length=50):
     """Helper function for loading the numpy phrases and converting them into a tensorflow dataset
 
     Parameters
