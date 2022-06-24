@@ -40,7 +40,7 @@ def parse_args(argv):
     )
     args.add_argument(
         "--config_path",
-        default="config.yaml",
+        default="src/config.yaml",
         type=str,
         help="Path to YAML file containing model configuration.",
     )
@@ -195,16 +195,15 @@ def main(argv):
     change the settings in config.yaml
     """
     args = parse_args(argv)
-
-    # debug path
-    # path_a = "data/JC_C_cp/tfrecord" # dummy dir with less data
-    # path_b = "data/JC_J_cp/tfrecord"
-
     path_a = args.path_a
     path_b = args.path_b
     model_output = args.model_output
     config_path = args.config_path
     log_dir = args.log_dir
+
+    # debug path
+    path_a = "data/JC_C_cp/tfrecord"  # dummy dir with less data
+    path_b = "data/JC_J_cp/tfrecord"
 
     learning_rate = args.learning_rate
     step = args.lr_step
@@ -225,7 +224,7 @@ def main(argv):
     os.makedirs(log_dir, exist_ok=True)
 
     dataset = load_data(
-        path_a, path_b, "train", batch_size=batch_size, cycle_length=500
+        path_a, path_b, "train", batch_size=batch_size, cycle_length=500, shuffle=True
     )
 
     # Setup monitoring and callbacks
