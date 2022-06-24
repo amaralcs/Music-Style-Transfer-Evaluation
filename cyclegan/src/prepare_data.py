@@ -61,7 +61,10 @@ def parse_args(argv):
         "genre", default="pop", type=str, help="Genre of the midis being processes."
     )
     args.add_argument(
-        "--outpath", default="phrases", type=str, help="Name of directory with outputs."
+        "--outpath",
+        default="tfrecord",
+        type=str,
+        help="Name of directory with outputs.",
     )
     args.add_argument(
         "--test-ratio",
@@ -318,7 +321,6 @@ def convert_and_clean_midis(midi_fpath, **filter_kwargs):
     midi_paths = get_midi_path(midi_fpath)
     logger.info(f"Found {len(midi_paths)} midi files")
 
-    track_metadata = {}
     midi_tracks = [create_multitracks(midi_path) for midi_path in midi_paths]
 
     filtered_tracks = []
@@ -456,63 +458,39 @@ def train_test_split(tracks, test_ratio):
     return train_set, test_set
 
 
-def np_to_tfrecord(trimmed_midis, remove_velocity):
-    """Converts a list of numpy arrays to tfrecord format.
+def save(trimmed_midis, dataset, outpath, genre, remove_velocity):
+    """Saves the processed midis as tfrecords.
 
     Parameters
     ----------
     trimmed_midis : List[np.array]
         List of midi files to convert.
-    remove_velocity : Boolean, Optional
-        Whether to remove velocity information from the outputs.
-
-    Returns
-    -------
-    A tensor of dtype string.
-    """
-
-    def _bytes_feature(value):
-        """Returns a bytes_list from a string / byte."""
-        if isinstance(value, type(tf.constant(0))):
-            value = (
-                value.numpy()
-            )  # BytesList won't unpack a string from an EagerTensor.
-        return Feature(bytes_list=tf.train.BytesList(value=[value]))
-
-    concat_midis = np.concatenate(trimmed_midis, axis=0)
-
-    # Convert to an array of booleans if we want to omit velocity
-    if remove_velocity:
-        concat_midis = concat_midis > 0
-
-    tensor = tf.io.serialize_tensor(concat_midis)
-
-    feature = {"array": _bytes_feature(tensor)}
-    features = Features(feature=feature)
-    example = Example(features=features)
-    serialized_example = example.SerializeToString()
-    return serialized_example
-
-
-def save(records, dataset, outpath, genre):
-    """Saves the processed midis as tfrecords.
-
-    Parameters
-    ----------
-    records : List[tf.tensor]
-        List of midi files to save.
     dataset : str
         Name of dataset to save (train or test)
     outpath : str
         Location to save the phrases.
     genre : str
         The name of the genre.
+    remove_velocity : Boolean, Optional
+        Whether to remove velocity information from the outputs.
     """
     outpath = os.path.join(outpath, genre, dataset)
+    os.makedirs(outpath, exist_ok=True)
+
+    # Aggregate all np arrays into a single array for ease of handling
+    concat_midis = np.concatenate(trimmed_midis, axis=0)
+
+    # Convert to an array of booleans if we want to omit velocity
+    if remove_velocity:
+        concat_midis = concat_midis > 0
+
+    concat_midis = concat_midis.astype(np.float32)
 
     logger.info(f"Saving phrases to {outpath}")
-    for idx, tensor in enumerate(records):
+    for idx, np_arr in enumerate(concat_midis):
         fname = os.path.join(outpath, f"{genre}_{idx+1}.tfrecord")
+
+        tensor = tf.io.serialize_tensor(np_arr)
 
         with tf.io.TFRecordWriter(fname) as writer:
             writer.write(tensor.numpy())
@@ -540,11 +518,8 @@ def main(argv):
 
     outpath = os.path.join(root_path, outpath)
 
-    train_set_tensors = np_to_tfrecord(train_set, remove_velocity)
-    save(train_set_tensors, "train", outpath, genre, remove_velocity)
-
-    test_set_tensors = np_to_tfrecord(test_set, remove_velocity)
-    save(test_set_tensors, "test", outpath, genre, remove_velocity)
+    save(train_set, "train", outpath, genre, remove_velocity)
+    save(test_set, "test", outpath, genre, remove_velocity)
 
 
 if __name__ == "__main__":
