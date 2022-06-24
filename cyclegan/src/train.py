@@ -135,13 +135,38 @@ def get_run_logdir(root_logdir, genre_a, genre_b, epochs, batch_size):
 
 
 def setup(log_dir, genre_a, genre_b, epochs, batch_size, learning_rate, step):
-    """Creates the logging info, model name and defines the callbacks"""
+    """Creates the logging info, model name and defines the callbacks
+
+    Parameters
+    ----------
+    log_dir : str
+        Name of directory to log training details.
+    genre_a : str
+        Name of genre A.
+    genre_b : str
+        Name of genre B.
+    epochs : int
+        Number of epochs to train.
+    batch_size : int
+        Batch size to use for training.
+    learning_rate : float
+        The model initial learning rate.
+    step : int
+        Number of epochs before start decreasing the learning rate.
+
+    Returns
+    -------
+    model_info : str
+        String containing model training info.
+    callbacks : List[tf.keras.callbacks]
+        Callbacks to use during training.
+    """
     run_logdir, model_info = get_run_logdir(
         log_dir, genre_a, genre_b, epochs, batch_size
     )
     file_writer = tf.summary.create_file_writer(run_logdir + "/metrics")
     file_writer.set_as_default()
-    lr_function = lr_function_wrapper(lr, epochs, step)
+    lr_function = lr_function_wrapper(learning_rate, epochs, step)
 
     callbacks = [LearningRateScheduler(lr_function), TensorBoard(log_dir=run_logdir)]
     return model_info, callbacks
