@@ -3,8 +3,7 @@ import os
 import numpy as np
 import logging
 
-from utils import load_data
-from tf2_utils import save_midis
+from utils import load_data, save_midis
 import write_midi
 from cyclegan import CycleGAN
 
