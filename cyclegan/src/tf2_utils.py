@@ -10,15 +10,25 @@ class ImagePool(object):
     def __init__(self, maxsize=50):
         self.maxsize = maxsize
         self.num_img = 0
+        # this is an image buffer that will store samples during the run
+        
         self.images = []
 
     def __call__(self, image):
         if self.maxsize <= 0:
             return image
+        
+        # We fill an array `images` with `maxsize` samples from the data
         if self.num_img < self.maxsize:
             self.images.append(image)
             self.num_img += 1
             return image
+        
+        # Once the array is filled we run this:
+        # If rand >0.5:
+        # remove some images from each of the styles from the buffer
+        # add the inputs to the buffer  
+        # Return the images taken from the buffer
         if np.random.rand() > 0.5:
             idx = int(np.random.rand() * self.maxsize)
             tmp1 = copy.copy(self.images[idx])[0]

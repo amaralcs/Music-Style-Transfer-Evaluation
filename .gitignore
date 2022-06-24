@@ -17,3 +17,6 @@ chordgan/trained_models/
 chordgan/converted_songs/
 chordgan/training_logs/
 dissertation/
+cyclegan/train_logs/
+cyclegan/trained_models/
+docs/
